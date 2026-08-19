@@ -1,0 +1,144 @@
+{
+  "name": "chronicle",
+  "version": "1.0.0",
+  "packageManager": "npm@11.18.0",
+  "description": "Chronicle — AI desktop app with local screen and audio capture",
+  "author": "Chronicle",
+  "main": "dist-electron/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "compile": "npm run backend:build && tsc && vite build",
+    "build": "npm run build:desktop",
+    "build:desktop": "npm run compile && electron-builder",
+    "prepare:mac-universal": "node scripts/prepare-mac-universal.mjs",
+    "build:mac": "npm run compile && npm run prepare:mac-universal && electron-builder --mac dmg --universal --publish never",
+    "build:linux": "npm run compile && electron-builder --linux AppImage --x64 --publish never",
+    "build:win": "npm run compile && electron-builder --win nsis --x64 --publish never",
+    "build:site": "npm run build --prefix site",
+    "test:runtime": "node --experimental-strip-types --test electron/runtime-policy.test.ts",
+    "verify:package:mac": "node scripts/verify-packaged-runtime.mjs release/mac-universal/Chronicle.app/Contents/Resources/app.asar",
+    "preview": "vite preview",
+    "electron:dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "backend:install": "npm install --prefix backend",
+    "backend:dev": "npm run dev --prefix backend",
+    "backend:build": "npm run build --prefix backend",
+    "memory:start": "node scripts/hydradb-start.mjs",
+    "memory:start:local": "node scripts/hydradb-start.mjs",
+    "memory:status": "curl -sf http://127.0.0.1:9090/readyz",
+    "postinstall": "npm run backend:install"
+  },
+  "dependencies": {
+    "@composio/core": "^0.14.0",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@hono/node-server": "^1.14.4",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-label": "^2.1.7",
+    "@radix-ui/react-popover": "^1.1.15",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-separator": "^1.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-switch": "^1.2.6",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.0.4",
+    "date-fns": "^3.6.0",
+    "electron-store": "^10.0.1",
+    "framer-motion": "^11.18.2",
+    "hono": "^4.7.10",
+    "lucide-react": "^0.414.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-force-graph-2d": "^1.29.1",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.1.1",
+    "remark-gfm": "^4.0.1",
+    "screenshot-desktop": "^1.15.1",
+    "semver": "^7.8.5",
+    "sharp": "^0.33.5",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^2.6.1",
+    "tesseract.js": "^6.0.1",
+    "ws": "^8.21.1",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.19",
+    "@types/node": "^20.19.37",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.4.21",
+    "electron": "^43.1.1",
+    "electron-builder": "^25.1.8",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^3.4.19",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5.9.3",
+    "vite": "^6.2.0",
+    "vite-plugin-electron": "^0.29.0",
+    "vite-plugin-electron-renderer": "^0.14.6"
+  },
+  "build": {
+    "appId": "com.chronicle.desktop",
+    "productName": "Chronicle",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "build/runtime-manifest.json",
+      "backend/dist/**/*",
+      "backend/package.json",
+      "scripts/hydradb-start.mjs"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/native",
+        "to": "backend-native"
+      }
+    ],
+    "asarUnpack": [
+      "node_modules/@ffmpeg-installer/**/*",
+      "node_modules/sharp/**/*",
+      "node_modules/@img/**/*",
+      "node_modules/screenshot-desktop/**/*"
+    ],
+    "mac": {
+      "target": "dmg",
+      "artifactName": "Chronicle-universal.${ext}",
+      "icon": "icon.png",
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Chronicle records microphone audio when you start meeting notes.",
+        "NSAudioCaptureUsageDescription": "Chronicle records meeting playback so every participant can be transcribed."
+      },
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": true
+    },
+    "linux": {
+      "target": "AppImage",
+      "artifactName": "Chronicle-x86_64.${ext}",
+      "icon": "icon.png",
+      "category": "Utility",
+      "synopsis": "Local AI workspace for screen, audio, and context"
+    },
+    "win": {
+      "target": "nsis",
+      "artifactName": "Chronicle-win.${ext}"
+    }
+  },
+  "allowScripts": {
+    "electron@43.1.1": true,
+    "esbuild@0.25.12": true
+  }
+}

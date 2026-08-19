@@ -1,0 +1,6 @@
+{
+  "installCommand": "npm install --prefix site",
+  "buildCommand": "npm run build:site",
+  "outputDirectory": "site/dist",
+  "framework": "vite"
+}

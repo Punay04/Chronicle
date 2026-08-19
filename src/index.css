@@ -1,0 +1,236 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --background: 68 42% 87%;
+    --foreground: 70 23% 21%;
+    --surface: 70 41% 97%;
+    --surface-secondary: 63 53% 93%;
+    --surface-tertiary: 65 44% 89%;
+    --card: 63 53% 93%;
+    --card-foreground: 70 23% 21%;
+    --card-hover: 70 41% 97%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 6% 10%;
+    --primary: 70 23% 21%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 67 32% 32%;
+    --primary-muted: 65 44% 89%;
+    --secondary: 65 44% 89%;
+    --secondary-foreground: 70 23% 21%;
+    --secondary-hover: 63 53% 93%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-hover: 0 72% 45%;
+    --destructive-muted: 0 72% 97%;
+    --muted: 65 44% 89%;
+    --muted-foreground: 67 32% 32%;
+    --accent: 63 53% 93%;
+    --accent-foreground: 70 23% 21%;
+    --accent-hover: 66 33% 74%;
+    --border: 66 33% 74%;
+    --input: 66 33% 74%;
+    --input-focus: 67 32% 32%;
+    --ring: 67 32% 32%;
+    --text-primary: 70 23% 21%;
+    --text-secondary: 67 32% 32%;
+    --text-tertiary: 66 18% 48%;
+    --text-disabled: 66 12% 62%;
+    --sidebar-background: 0 6% 10%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 70 23% 21%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 100%;
+    --sidebar-accent-foreground: 68 42% 87%;
+    --sidebar-border: 0 0% 100%;
+    --sidebar-ring: 67 32% 32%;
+    --radius: 0.625rem;
+    --font-size-base: 14px;
+    --text-xs: calc(var(--font-size-base) * 0.857);
+    --text-sm: calc(var(--font-size-base) * 0.929);
+    --text-base: var(--font-size-base);
+    --text-lg: calc(var(--font-size-base) * 1.143);
+    --text-xl: calc(var(--font-size-base) * 1.286);
+    --text-2xl: calc(var(--font-size-base) * 1.571);
+    --text-3xl: calc(var(--font-size-base) * 1.857);
+    --text-4xl: calc(var(--font-size-base) * 2.286);
+  }
+
+  .dark {
+    color-scheme: dark;
+    --background: 0 6% 10%;
+    --foreground: 65 44% 89%;
+    --surface: 36 9% 11%;
+    --surface-secondary: 36 7% 13%;
+    --surface-tertiary: 36 6% 15%;
+    --card: 36 7% 13%;
+    --card-foreground: 65 44% 89%;
+    --card-hover: 36 6% 15%;
+    --popover: 36 7% 13%;
+    --popover-foreground: 65 44% 89%;
+    --primary: 68 50% 74%;
+    --primary-foreground: 0 6% 10%;
+    --primary-hover: 66 33% 74%;
+    --primary-muted: 36 6% 15%;
+    --secondary: 36 6% 15%;
+    --secondary-foreground: 68 50% 74%;
+    --secondary-hover: 36 7% 13%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-hover: 0 72% 45%;
+    --destructive-muted: 0 40% 16%;
+    --muted: 36 6% 15%;
+    --muted-foreground: 66 18% 48%;
+    --accent: 36 6% 15%;
+    --accent-foreground: 68 50% 74%;
+    --accent-hover: 36 7% 18%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --input-focus: 67 32% 32%;
+    --ring: 67 32% 32%;
+    --text-primary: 65 44% 89%;
+    --text-secondary: 66 18% 48%;
+    --text-tertiary: 66 12% 42%;
+    --text-disabled: 66 8% 36%;
+    --sidebar-background: 0 6% 10%;
+    --sidebar-foreground: 65 44% 89%;
+    --sidebar-primary: 68 50% 74%;
+    --sidebar-primary-foreground: 0 6% 10%;
+    --sidebar-accent: 0 0% 100%;
+    --sidebar-accent-foreground: 68 50% 74%;
+    --sidebar-border: 0 0% 18%;
+    --sidebar-ring: 67 32% 32%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    background-color: hsl(var(--background));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    margin: 0;
+    overflow: hidden;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: "Fraunces", "Times New Roman", serif;
+    text-wrap: balance;
+  }
+
+  html,
+  body {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  *,
+  button,
+  a {
+    user-select: none;
+    -webkit-user-drag: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input,
+  textarea,
+  [contenteditable] {
+    user-select: text !important;
+  }
+
+  .prose,
+  .prose * {
+    user-select: text !important;
+    cursor: text !important;
+  }
+
+  .prose::selection,
+  .prose *::selection {
+    background-color: hsl(var(--primary) / 0.15) !important;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-minimal {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+  }
+  .scrollbar-minimal::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-minimal::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 999px;
+  }
+
+  .vibrant-sidebar {
+    background-color: hsl(var(--sidebar-background) / 0.92) !important;
+    backdrop-filter: blur(12px);
+    border-color: hsl(var(--sidebar-border) / 0.8) !important;
+  }
+}
+
+@layer components {
+  .page-header {
+    @apply px-6 py-5 border-b border-border shrink-0 bg-background;
+  }
+
+  .page-header-title {
+    @apply text-lg font-semibold text-foreground tracking-tight;
+    font-family: "Fraunces", "Times New Roman", serif;
+  }
+
+  .page-header-desc {
+    @apply text-sm text-muted-foreground mt-0.5;
+  }
+
+  .nav-item {
+    @apply flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors duration-150;
+  }
+
+  .nav-item:hover {
+    @apply bg-accent text-foreground;
+  }
+
+  .nav-item-active {
+    @apply bg-primary/10 text-primary;
+  }
+
+  .surface-card {
+    @apply rounded-lg border border-border bg-card p-4 transition-colors duration-150;
+  }
+
+  .surface-card:hover {
+    @apply border-primary/25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
