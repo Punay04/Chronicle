@@ -260,7 +260,7 @@ export class RuntimeManager {
       if (!isSupportedRuntimePlatform(process.platform)) {
         throw this.runtimeError(
           "UNSUPPORTED_PLATFORM",
-          "Chronicle requires Windows, macOS, or Linux with Docker.",
+          "Chronicle requires Windows, macOS, or Linux.",
           false
         );
       }
@@ -312,7 +312,7 @@ export class RuntimeManager {
   }
 
   private ensureHydra(): Promise<void> {
-    this.update("installing", "starting HydraDB with Docker", 28);
+    this.update("installing", "starting HydraDB graph-node", 28);
     const script = path.join(__dirname, "..", "scripts", "hydradb-start.mjs");
 
     return new Promise((resolve, reject) => {
@@ -330,7 +330,7 @@ export class RuntimeManager {
         reject(
           this.runtimeError(
             "INSTALL_FAILED",
-            "Docker could not start the HydraDB graph node.",
+            "Could not start the HydraDB graph-node.",
             true,
             error.message
           )
@@ -342,7 +342,7 @@ export class RuntimeManager {
           reject(
             this.runtimeError(
               "INSTALL_FAILED",
-              "HydraDB could not be started. Install Docker Desktop and retry.",
+              "HydraDB could not be started. Run npm run memory:bootstrap, then retry.",
               true,
               this.memoryOutput
             )

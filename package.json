@@ -26,6 +26,7 @@
     "backend:build": "npm run build --prefix backend",
     "memory:start": "node scripts/hydradb-start.mjs",
     "memory:start:local": "node scripts/hydradb-start.mjs",
+    "memory:bootstrap": "node scripts/hydradb-bootstrap.mjs",
     "memory:status": "curl -sf http://127.0.0.1:9090/readyz",
     "postinstall": "npm run backend:install"
   },

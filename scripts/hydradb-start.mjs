@@ -1,7 +1,8 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
+  readFileSync,
   writeFileSync,
 } from "node:fs";
 import os from "node:os";
@@ -9,8 +10,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const IMAGE = process.env.HYDRADB_IMAGE ?? "ghcr.io/hydra-db/hydradb:latest";
-const CONTAINER = process.env.HYDRADB_CONTAINER ?? "chronicle-hydradb";
 const HTTP_PORT = Number(process.env.HYDRADB_HTTP_PORT ?? 8443);
 const BOLT_PORT = Number(process.env.HYDRADB_BOLT_PORT ?? 7687);
 const ADMIN_PORT = Number(process.env.HYDRADB_ADMIN_PORT ?? 9090);
@@ -19,13 +18,16 @@ const AUTH_TOKEN =
 const DATA_ROOT =
   process.env.HYDRADB_DATA_DIR ??
   path.join(os.homedir(), ".chronicle", "hydradb");
+const USE_DOCKER = process.env.HYDRADB_USE_DOCKER === "1";
+const IMAGE = process.env.HYDRADB_IMAGE ?? "ghcr.io/hydra-db/hydradb:latest";
+const CONTAINER = process.env.HYDRADB_CONTAINER ?? "chronicle-hydradb";
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: root,
       stdio: ["ignore", "pipe", "pipe"],
-      shell: process.platform === "win32",
+      shell: false,
     });
     let out = "";
     child.stdout?.on("data", (chunk) => {
@@ -40,6 +42,29 @@ function run(command, args) {
       else reject(new Error(out.trim() || `${command} exited ${code}`));
     });
   });
+}
+
+function lookupOnPath(command) {
+  try {
+    const output = execFileSync(
+      process.platform === "win32" ? "where" : "which",
+      [command],
+      { encoding: "utf8" }
+    );
+    return output.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function hasWsl() {
+  if (process.platform !== "win32") return false;
+  try {
+    execFileSync("wsl", ["-e", "true"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function reachable(url, timeoutMs = 1500) {
@@ -60,9 +85,28 @@ function prepareDirs() {
   const cache = path.join(DATA_ROOT, "cache");
   mkdirSync(store, { recursive: true });
   mkdirSync(cache, { recursive: true });
+  mkdirSync(path.join(DATA_ROOT, "bin"), { recursive: true });
   const tokenFile = path.join(DATA_ROOT, "auth-token");
   writeFileSync(tokenFile, `${AUTH_TOKEN}\n`, { encoding: "utf8" });
   return { store, cache, tokenFile };
+}
+
+function graphEnv({ store, cache, tokenFile }) {
+  return {
+    CLOUD_PROVIDER: "local",
+    LOCAL_PATH: store,
+    GRAPH_NAMESPACE: "default",
+    GRAPH_ID: "default",
+    GRAPH_CELL_ID: "cell-0",
+    GRAPH_CELLS: "cell-0",
+    GRAPH_NODE_ID: "node-0",
+    GRAPH_BOLT_NODE_ADDRESSES: `node-0=127.0.0.1:${BOLT_PORT}`,
+    GRAPH_ADVERTISED_BOLT_ADDR: `127.0.0.1:${BOLT_PORT}`,
+    GRAPH_DATA_CACHE_DIR: cache,
+    GRAPH_AUTH_TOKEN_FILE: tokenFile,
+    GRAPH_ALLOW_PLAINTEXT: "true",
+    RUST_MIN_STACK: "33554432",
+  };
 }
 
 async function waitForReady(attempts = 90) {
@@ -74,33 +118,105 @@ async function waitForReady(attempts = 90) {
   throw new Error(`HydraDB did not become ready at ${url}`);
 }
 
-async function main() {
-  const admin = `http://127.0.0.1:${ADMIN_PORT}/readyz`;
-  if (await reachable(admin)) {
-    console.log(`[hydradb] already running at ${admin}`);
-    return;
-  }
+function resolveHostBinary() {
+  const exe = process.platform === "win32" ? "graph-node.exe" : "graph-node";
+  const candidates = [
+    process.env.HYDRADB_BIN,
+    path.join(DATA_ROOT, "bin", exe),
+    path.join(DATA_ROOT, "bin", "graph-node"),
+    lookupOnPath("graph-node"),
+    lookupOnPath("graph-node.exe"),
+  ].filter(Boolean);
 
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+}
+
+function spawnDetached(command, args, env) {
+  const child = spawn(command, args, {
+    cwd: root,
+    env: { ...process.env, ...env },
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+    shell: false,
+  });
+  child.unref();
+  writeFileSync(path.join(DATA_ROOT, "graph-node.pid"), String(child.pid ?? ""), {
+    encoding: "utf8",
+  });
+}
+
+async function startHostBinary(bin, dirs) {
+  console.log(`[hydradb] starting native graph-node: ${bin}`);
+  spawnDetached(bin, [], graphEnv(dirs));
+  await waitForReady();
+}
+
+async function toWslPath(winPath) {
+  return (await run("wsl", ["wslpath", "-a", winPath])).trim();
+}
+
+function readWslBinMarker() {
+  const marker = path.join(DATA_ROOT, "wsl-bin");
+  if (!existsSync(marker)) return null;
+  const value = readFileSync(marker, "utf8").trim();
+  return value || null;
+}
+
+async function resolveWslBinary() {
+  if (process.env.HYDRADB_WSL_BIN) return process.env.HYDRADB_WSL_BIN;
+  const marked = readWslBinMarker();
+  if (marked) return marked;
   try {
-    await run("docker", ["version"]);
+    const found = await run("wsl", ["-e", "bash", "-lc", "command -v graph-node"]);
+    return found.trim() || null;
   } catch {
-    throw new Error(
-      "Docker is required to run the local HydraDB graph node. Start Docker Desktop and retry."
-    );
+    return null;
   }
+}
 
-  const { store, cache, tokenFile } = prepareDirs();
+async function startWsl(dirs) {
+  const bin = await resolveWslBinary();
+  if (!bin) return false;
 
+  const store = await toWslPath(dirs.store);
+  const cache = await toWslPath(dirs.cache);
+  const tokenFile = await toWslPath(dirs.tokenFile);
+  const logFile = await toWslPath(path.join(DATA_ROOT, "graph-node.log"));
+
+  const remote = [
+    "export CLOUD_PROVIDER=local",
+    `export LOCAL_PATH='${store}'`,
+    "export GRAPH_NAMESPACE=default",
+    "export GRAPH_ID=default",
+    "export GRAPH_CELL_ID=cell-0",
+    "export GRAPH_CELLS=cell-0",
+    "export GRAPH_NODE_ID=node-0",
+    `export GRAPH_BOLT_NODE_ADDRESSES='node-0=127.0.0.1:${BOLT_PORT}'`,
+    `export GRAPH_ADVERTISED_BOLT_ADDR='127.0.0.1:${BOLT_PORT}'`,
+    `export GRAPH_DATA_CACHE_DIR='${cache}'`,
+    `export GRAPH_AUTH_TOKEN_FILE='${tokenFile}'`,
+    "export GRAPH_ALLOW_PLAINTEXT=true",
+    "export RUST_MIN_STACK=33554432",
+    `nohup '${bin}' > '${logFile}' 2>&1 & echo $!`,
+  ].join("; ");
+
+  console.log(`[hydradb] starting graph-node in WSL: ${bin}`);
+  await run("wsl", ["-e", "bash", "-lc", remote]);
+  await waitForReady();
+  return true;
+}
+
+async function startDocker(dirs) {
+  await run("docker", ["version"]);
   try {
     await run("docker", ["rm", "-f", CONTAINER]);
   } catch {
     // Container may not exist yet.
   }
-
   console.log(`[hydradb] pulling ${IMAGE}`);
   await run("docker", ["pull", IMAGE]);
-
-  const args = [
+  await run("docker", [
     "run",
     "-d",
     "--name",
@@ -112,11 +228,11 @@ async function main() {
     "-p",
     `${ADMIN_PORT}:9090`,
     "-v",
-    `${store}:/data/store`,
+    `${dirs.store}:/data/store`,
     "-v",
-    `${cache}:/data/cache`,
+    `${dirs.cache}:/data/cache`,
     "-v",
-    `${tokenFile}:/data/auth-token`,
+    `${dirs.tokenFile}:/data/auth-token`,
     "-e",
     "CLOUD_PROVIDER=local",
     "-e",
@@ -144,11 +260,37 @@ async function main() {
     "-e",
     "RUST_MIN_STACK=33554432",
     IMAGE,
-  ];
-
-  console.log("[hydradb] starting graph-node");
-  await run("docker", args);
+  ]);
   await waitForReady();
+}
+
+async function main() {
+  const admin = `http://127.0.0.1:${ADMIN_PORT}/readyz`;
+  if (await reachable(admin)) {
+    console.log(`[hydradb] already running at ${admin}`);
+    return;
+  }
+
+  const dirs = prepareDirs();
+  const hostBin = resolveHostBinary();
+
+  if (hostBin) {
+    await startHostBinary(hostBin, dirs);
+  } else if (hasWsl() && (await startWsl(dirs))) {
+    // started in WSL
+  } else if (USE_DOCKER) {
+    await startDocker(dirs);
+  } else {
+    throw new Error(
+      [
+        "No native HydraDB graph-node found.",
+        "Build one (no Docker): npm run memory:bootstrap",
+        "Or put the binary at ~/.chronicle/hydradb/bin/graph-node",
+        "Docker is opt-in only: HYDRADB_USE_DOCKER=1 npm run memory:start",
+      ].join("\n")
+    );
+  }
+
   console.log(
     `[hydradb] ready  http://127.0.0.1:${HTTP_PORT}  bolt://127.0.0.1:${BOLT_PORT}`
   );

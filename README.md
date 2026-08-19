@@ -42,8 +42,11 @@ HydraDB is required for memory. Without the local graph-node, capture still work
 ## Requirements
 
 - Node.js 24 and npm 11
-- Docker Desktop (runs the HydraDB `graph-node` image)
 - A Gemini API key for chat, transcription, and summaries
+- A native HydraDB `graph-node` (no Docker by default)
+  - **Windows:** WSL (Ubuntu) to compile once with `npm run memory:bootstrap`
+  - **Linux:** the same bootstrap, or a `graph-node` on `PATH`
+  - Optional: `HYDRADB_USE_DOCKER=1` if you already have Docker and prefer the published image
 
 ## Setup
 
@@ -53,22 +56,26 @@ cd Chronicle
 cp .env.example .env
 # put GEMINI_API_KEY in .env
 npm install
+npm run memory:bootstrap   # first time only — compiles graph-node (WSL on Windows)
 npm run dev
 ```
 
 `npm run dev` starts:
 
-1. HydraDB via Docker (`ghcr.io/hydra-db/hydradb:latest`)
+1. Local HydraDB `graph-node` (native binary, or WSL on Windows)
 2. The capture backend on port 3030
 3. Vite + Electron
 
-First HydraDB start downloads the image and may take a few minutes. Data is kept under `~/.chronicle/hydradb/`.
+First compile can take several minutes. Data is kept under `~/.chronicle/hydradb/`.
 
 ### HydraDB only
 
 ```bash
+npm run memory:bootstrap   # once
 npm run memory:start
 ```
+
+Lookup order: `HYDRADB_BIN` or `~/.chronicle/hydradb/bin/graph-node`, then a WSL binary (`HYDRADB_WSL_BIN` or `~/.chronicle/hydradb/wsl-bin`). Docker is opt-in: `HYDRADB_USE_DOCKER=1 npm run memory:start`.
 
 Health check: `GET http://127.0.0.1:9090/readyz`
 
@@ -86,7 +93,7 @@ A later session with a different city writes a new `Fact` and a `SUPERSEDES` edg
 
 ```
 Renderer (React) --IPC--> Electron main
-                              |-- scripts/hydradb-start.mjs --> Docker graph-node
+                              |-- scripts/hydradb-start.mjs --> native / WSL graph-node
                               |-- Hono capture API :3030
                                     |-- Capture engine (screen / OCR / audio)
                                     |-- SQLite + FTS5
@@ -99,6 +106,7 @@ Renderer (React) --IPC--> Electron main
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | HydraDB + backend + Vite/Electron |
+| `npm run memory:bootstrap` | Compile native `graph-node` (WSL on Windows) |
 | `npm run memory:start` | Start the local HydraDB graph-node |
 | `npm run typecheck` | Typecheck the desktop app |
 | `npm run test:runtime` | Runtime policy tests |
@@ -108,4 +116,4 @@ Renderer (React) --IPC--> Electron main
 
 ## License
 
-MIT. HydraDB itself is AGPL-3.0 and is run as a separate Docker process, not vendored into this repository.
+MIT. HydraDB itself is AGPL-3.0 and is run as a separate `graph-node` process, not vendored into this repository.

@@ -11,7 +11,7 @@ import {
   readManagedApiKey,
 } from "./runtime-policy.ts";
 
-test("runtime platform policy supports desktop hosts with Docker", () => {
+test("runtime platform policy supports desktop hosts", () => {
   assert.equal(isSupportedRuntimePlatform("darwin"), true);
   assert.equal(isSupportedRuntimePlatform("linux"), true);
   assert.equal(isSupportedRuntimePlatform("win32"), true);
