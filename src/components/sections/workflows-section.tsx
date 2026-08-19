@@ -1,8 +1,13 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Download, Loader2, Play, Workflow } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { api, type PipeId, type PipeListItem } from "@/lib/api/client";
+import { findMainSection } from "@/lib/nav";
 
 function formatLastRun(iso: string | null): string | null {
   if (!iso) return null;
@@ -44,13 +49,14 @@ export function WorkflowsSection() {
     return () => clearInterval(timer);
   }, [loadWorkflows]);
 
-  const handleInstall = async (id: PipeId) => {
+  const handleInstall = async (workflow: PipeListItem) => {
+    const id = workflow.id;
     setBusyId(id);
     try {
       await api.installPipe(id);
       await api.enablePipe(id, true);
       await loadWorkflows();
-      toast.success(`${id} installed`);
+      toast.success(`${workflow.name} installed`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Install failed");
     } finally {
@@ -63,41 +69,41 @@ export function WorkflowsSection() {
     try {
       const result = await api.runPipe(workflow.id);
       if (result.status === "error") {
-        toast.error(result.error ?? "Workflow run failed");
+        toast.error(result.error ?? "Routine run failed");
         setLastOutput((prev) => ({
           ...prev,
-          [workflow.id]: result.error ?? "Workflow run failed",
+          [workflow.id]: result.error ?? "Routine run failed",
         }));
       } else {
-        const output = result.output ?? "Workflow completed";
+        const output = result.output ?? "Routine completed";
         setLastOutput((prev) => ({ ...prev, [workflow.id]: output }));
         toast.success(`${workflow.name} completed`);
       }
       await loadWorkflows();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Workflow run failed");
+      toast.error(err instanceof Error ? err.message : "Routine run failed");
     } finally {
       setBusyId(null);
     }
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 overflow-y-auto scrollbar-minimal">
-      <div className="page-header">
-        <h1 className="page-header-title">Workflows</h1>
-        <p className="page-header-desc">Automation workflows for your captured context</p>
-      </div>
-      <div className="p-6 grid gap-4 md:grid-cols-2">
+    <div className="flex h-full min-h-0 flex-1 flex-col">
+      <PageHeader title="Routines" description={findMainSection("workflows")?.description} />
+      <div className="scrollbar-minimal grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-6 md:grid-cols-2">
         {loading && workflows.length === 0 ? (
           <div className="col-span-full flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Loading workflows…
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading routines…
           </div>
         ) : null}
         {!loading && workflows.length === 0 ? (
-          <div className="col-span-full text-sm text-muted-foreground">
-            No workflows available. Make sure the backend is running.
-          </div>
+          <EmptyState
+            className="col-span-full"
+            icon={Workflow}
+            title="No routines available"
+            description="Chronicle could not reach the recorder. Check that it is running in Preferences."
+          />
         ) : null}
         {workflows.map((workflow) => {
           const busy = busyId === workflow.id || workflow.running;
@@ -105,16 +111,12 @@ export function WorkflowsSection() {
           const output = lastOutput[workflow.id];
 
           return (
-            <div key={workflow.id} className="surface-card flex flex-col gap-4">
+            <Card key={workflow.id} interactive className="flex flex-col gap-4">
               <div className="flex items-start justify-between gap-3">
-                <Workflow className="w-5 h-5 shrink-0" />
+                <Workflow className="h-5 w-5 shrink-0 text-muted-foreground" />
                 <div className="flex flex-col items-end gap-1">
-                  {workflow.installed ? (
-                    <span className="text-[10px] font-medium rounded-full border border-border px-2 py-0.5 text-muted-foreground">
-                      Installed
-                    </span>
-                  ) : null}
-                  <span className="text-[10px] text-muted-foreground">{workflow.schedule}</span>
+                  {workflow.installed ? <Badge variant="outline">Installed</Badge> : null}
+                  <span className="text-xs text-muted-foreground">{workflow.schedule}</span>
                 </div>
               </div>
               <div>
@@ -150,7 +152,7 @@ export function WorkflowsSection() {
                     size="sm"
                     className="w-fit gap-2"
                     disabled={busy}
-                    onClick={() => void handleInstall(workflow.id)}
+                    onClick={() => void handleInstall(workflow)}
                   >
                     {busy ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
@@ -161,7 +163,7 @@ export function WorkflowsSection() {
                   </Button>
                 )}
               </div>
-            </div>
+            </Card>
           );
         })}
       </div>

@@ -228,13 +228,35 @@ export interface ConnectorInfo {
   configured: boolean;
 }
 
+/** Thrown when the capture backend is not listening. Callers can distinguish a
+ *  backend that is simply down from a real API error. */
+export class BackendOfflineError extends Error {
+  constructor(message = "The Chronicle recorder is not running") {
+    super(message);
+    this.name = "BackendOfflineError";
+  }
+}
+
+interface ApiEnvelope<T> {
+  ok: boolean;
+  data?: T;
+  error?: string;
+  offline?: boolean;
+}
+
 async function request<T>(
   method: string,
   path: string,
   body?: unknown
 ): Promise<T> {
   if (electron?.apiRequest) {
-    return electron.apiRequest(method, path, body) as Promise<T>;
+    // Main returns a result envelope rather than rejecting, so that a stopped
+    // backend does not print a stack trace per poll. Unwrap it here and throw,
+    // keeping the contract every caller already expects.
+    const result = (await electron.apiRequest(method, path, body)) as ApiEnvelope<T>;
+    if (result?.ok) return result.data as T;
+    if (result?.offline) throw new BackendOfflineError();
+    throw new Error(result?.error ?? `API ${method} ${path} failed`);
   }
 
   const base = await getBaseUrl();

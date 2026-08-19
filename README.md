@@ -1,6 +1,6 @@
 # Chronicle
 
-Chronicle is a local-first AI desktop workspace. It captures screen activity and meetings on your machine, stores them in SQLite, and writes a **property graph of episodes and facts into a local HydraDB graph-node**. Chat, search, and the Brain view retrieve over that graph with OpenCypher — including current vs superseded facts and explicit abstention when nothing matches.
+Chronicle is a local-first AI workspace that remembers your work. It captures screen activity and recordings on your machine, stores them in SQLite, and writes a **property graph of episodes and facts into a local HydraDB graph-node**. The Assistant, search, and the Memory view retrieve over that graph with OpenCypher — including current vs superseded facts and explicit abstention when nothing matches.
 
 ## Quick start
 
@@ -76,6 +76,8 @@ cd /path/to/Chronicle && npm run dev
 
 Vector search cannot tell you whether a fact is still true, what it replaced, or that the answer is not in memory. Chronicle uses the [HydraDB](https://github.com/hydra-db/hydradb) open-source graph database as the memory substrate:
 
+These are **graph schema names**, not product vocabulary — none of them appear in the interface. See [What you see](#what-you-see) for the words the app actually uses.
+
 | Graph object | Role |
 | --- | --- |
 | `Episode` | A screen chunk, transcript, meeting, pinned note, or chat turn |
@@ -87,17 +89,36 @@ Vector search cannot tell you whether a fact is still true, what it replaced, or
 
 Chat retrieval runs Cypher against **current** facts first, then superseded facts (labeled so the model must not treat them as live), then related episodes. If the graph has no match, Chronicle injects an `[abstain]` instruction so the model says it does not know instead of inventing history.
 
-HydraDB is required for memory. Without the local graph-node, capture still works in SQLite, but the Brain graph, profile, and graph-aware chat context are empty.
+HydraDB is required for memory. Without the local graph-node, capture still works in SQLite, but the Memory graph, profile, and graph-aware chat context are empty.
+
+## What you see
+
+The interface deliberately speaks plain English rather than schema. The mapping:
+
+| In the app | Underneath |
+| --- | --- |
+| **Assistant** | Chat over graph-retrieved context |
+| **History** | `frames` — screen snapshots with OCR text |
+| **Routines** | `pipes` — scheduled automations |
+| **Recordings** | `meetings` — audio, transcripts, summaries |
+| **Memory** | The HydraDB graph of `Episode` / `Fact` / `Session` |
+| **Integrations** | Composio connectors |
+| **Support** | Feedback and help |
+| Snapshot / Audio segment / Memory | `frame` / `audio_chunk` / graph node |
+
+Renaming anything in the left column is a UI-copy change only; the right column is schema and is never renamed without a migration.
 
 ## What you can do
 
-- Capture screen frames locally (deduplicated JPEG/MP4, OCR)
-- Record meeting audio, transcribe, summarize, and extract action items
-- Search history with SQLite FTS5 (`Ctrl/Cmd+K`)
-- Chat (typed or live voice) with HydraDB-retrieved context plus Gemini
-- Inspect the memory graph in **Brain**
-- Run built-in workflows (daily summary, meeting recap, focus tracker, action items)
-- Optionally connect Gmail, Calendar, Slack, and Notion through Composio
+Chronicle follows a **Capture → Remember → Act** loop:
+
+- **Capture** screen snapshots locally (deduplicated JPEG/MP4, OCR)
+- **Capture** meeting audio, then transcribe, summarize, and extract action items
+- **Remember** — everything becomes a queryable graph you can inspect in **Memory**
+- **Act** — search your history with SQLite FTS5 (`Ctrl/Cmd+K`)
+- **Act** — ask the **Assistant** (typed or live voice) with graph-retrieved context plus Gemini
+- **Act** — run built-in **Routines** (Daily Summary, Meeting Recap, Focus Tracker, Action Items)
+- Optionally connect Gmail, Calendar, Slack, and Notion through **Integrations**
 
 ## Local data
 

@@ -1,4 +1,5 @@
 import { app, safeStorage, shell } from "electron";
+import { fileURLToPath } from "node:url";
 import { spawn, type ChildProcess } from "node:child_process";
 import {
   appendFileSync,
@@ -10,7 +11,6 @@ import {
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import manifest from "../build/runtime-manifest.json";
 import {
   initialRuntimeStatus,
@@ -240,16 +240,16 @@ export class RuntimeManager {
   private async startInternal() {
     try {
       if (!app.isPackaged) {
-        this.update("checking", "waiting for development services", 20);
+        this.update("checking", "Waiting for development services", 20);
         await waitForHealth(ADMIN_READY, 90);
-        this.update("starting-backend", "connecting to capture backend", 75, {
+        this.update("starting-backend", "Connecting to the recorder", 75, {
           memoryReady: true,
         });
         await startBackend(
           this.hydraBackendEnv(),
           (message) => this.writeLog(`backend: ${message}`),
         );
-        this.update("ready", "local runtime ready", 100, {
+        this.update("ready", "Local runtime ready", 100, {
           memoryReady: true,
           backendReady: true,
           error: undefined,
@@ -267,16 +267,16 @@ export class RuntimeManager {
 
       const paths = this.paths();
       mkdirSync(paths.memory, { recursive: true });
-      this.update("checking", "checking HydraDB", 10);
+      this.update("checking", "Checking HydraDB", 10);
 
       const providerEnv = this.getProviderEnv();
       if (!(await reachable(ADMIN_READY))) {
-        this.update("starting-memory", "starting HydraDB graph node", 55);
+        this.update("starting-memory", "Starting the memory graph", 55);
         await this.ensureHydra();
         await this.waitForMemoryHealth();
       }
 
-      this.update("starting-backend", "starting Chronicle capture engine", 78, {
+      this.update("starting-backend", "Starting the Chronicle recorder", 78, {
         memoryReady: true,
       });
       try {
@@ -312,7 +312,7 @@ export class RuntimeManager {
   }
 
   private ensureHydra(): Promise<void> {
-    this.update("installing", "starting HydraDB graph-node", 28);
+    this.update("installing", "Starting the memory graph", 28);
     const script = path.join(__dirname, "..", "scripts", "hydradb-start.mjs");
 
     return new Promise((resolve, reject) => {
@@ -379,13 +379,13 @@ export class RuntimeManager {
   }
 
   async stop(): Promise<void> {
-    this.update("stopping", "stopping local services", 10, {
+    this.update("stopping", "Stopping local services", 10, {
       backendReady: false,
     });
     stopBackend();
     await this.stopChild(this.memoryProcess);
     this.memoryProcess = null;
-    this.update("stopping", "local services stopped", 100, {
+    this.update("stopping", "Local services stopped", 100, {
       memoryReady: false,
       backendReady: false,
     });

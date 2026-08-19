@@ -3,6 +3,9 @@ import { Mic, MicOff, Send } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { findMainSection } from "@/lib/nav";
 import { Input } from "@/components/ui/input";
 import { electron } from "@/lib/electron";
 import { LiveVoiceSession } from "@/lib/live-voice";
@@ -246,26 +249,23 @@ export function ChatPanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex flex-col h-full min-h-0", className)}>
-      <div className="page-header">
-        <h1 className="page-header-title">Chat</h1>
-        <p className="page-header-desc">Ask questions about your captured context</p>
-      </div>
+      <PageHeader title="Assistant" description={findMainSection("home")?.description} />
 
       <div className="flex-1 overflow-y-auto scrollbar-minimal px-6 py-6">
         <div className="flex flex-col gap-6 max-w-3xl mx-auto">
           {session?.messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <p className="text-sm text-muted-foreground max-w-sm">
-                Start a conversation. Your assistant can search screen history, audio, and connected apps.
-              </p>
-            </div>
+            <EmptyState
+              className="py-16"
+              title="Start a conversation"
+              description="Your assistant can search your screen history, recordings, and connected apps."
+            />
           )}
           {session?.messages.map((msg) => (
             <MessageBlock key={msg.id} message={msg} />
           ))}
           {isLiveVoice && liveUserPartial && (
             <div className="flex flex-col gap-1.5 items-end opacity-70">
-              <span className="text-xs font-medium text-foreground">you (live)</span>
+              <span className="text-xs font-medium text-foreground">You (live)</span>
               <div className="max-w-[85%] rounded-lg px-4 py-3 text-sm whitespace-pre-wrap bg-primary/80 text-primary-foreground">
                 {liveUserPartial}
               </div>
@@ -273,7 +273,7 @@ export function ChatPanel({ className }: { className?: string }) {
           )}
           {isLiveVoice && liveAssistantPartial && (
             <div className="flex flex-col gap-1.5 opacity-70">
-              <span className="text-xs font-medium text-foreground">assistant (live)</span>
+              <span className="text-xs font-medium text-foreground">Assistant (live)</span>
               <div className="max-w-[85%] rounded-lg border border-border bg-surface px-4 py-3 text-sm whitespace-pre-wrap">
                 {liveAssistantPartial}
               </div>
@@ -292,8 +292,8 @@ export function ChatPanel({ className }: { className?: string }) {
           {(isLiveVoice || liveConnecting) && !isStreaming && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/60" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive/60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
               </span>
               {liveConnecting ? "Connecting live voice…" : "Listening — speak naturally"}
             </div>

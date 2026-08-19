@@ -31,7 +31,7 @@ export interface ToolkitConfig {
 export const TOOLKITS: ToolkitConfig[] = [
   {
     slug: "gmail",
-    label: "gmail",
+    label: "Gmail",
     authConfigId: process.env.COMPOSIO_AUTH_CONFIG_GMAIL ?? "",
     tools: [
       "GMAIL_FETCH_EMAILS",
@@ -49,7 +49,7 @@ export const TOOLKITS: ToolkitConfig[] = [
   },
   {
     slug: "googlecalendar",
-    label: "google calendar",
+    label: "Google Calendar",
     authConfigId: process.env.COMPOSIO_AUTH_CONFIG_GOOGLECALENDAR ?? "",
     tools: [
       "GOOGLECALENDAR_EVENTS_LIST",
@@ -65,7 +65,7 @@ export const TOOLKITS: ToolkitConfig[] = [
   },
   {
     slug: "slack",
-    label: "slack",
+    label: "Slack",
     authConfigId: process.env.COMPOSIO_AUTH_CONFIG_SLACK ?? "",
     tools: [
       "SLACK_CHAT_POST_MESSAGE",
@@ -80,7 +80,7 @@ export const TOOLKITS: ToolkitConfig[] = [
   },
   {
     slug: "notion",
-    label: "notion",
+    label: "Notion",
     authConfigId: process.env.COMPOSIO_AUTH_CONFIG_NOTION ?? "",
     tools: [
       "NOTION_SEARCH_NOTION_PAGE",

@@ -111,4 +111,14 @@ CREATE TABLE IF NOT EXISTS pipe_runs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pipe_runs_pipe ON pipe_runs(pipe_id, started_at DESC);
+
+-- HydraDB requires node ids to be integers, but memory keys are strings
+-- ("frame_12", "fact_meeting_3"). This table is the stable mapping between
+-- them; the string key is also stored on the node itself as a property.
+CREATE TABLE IF NOT EXISTS graph_ids (
+  graph_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key TEXT NOT NULL UNIQUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_graph_ids_key ON graph_ids(key);
 `;

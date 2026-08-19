@@ -25,7 +25,13 @@ function propsOf(value: unknown): Record<string, unknown> {
 
 export function rowToMemoryNode(row: Record<string, unknown>): MemoryNode | null {
   const source = propsOf(row.e ?? row.n ?? row.node ?? row.f ?? row);
-  const id = asString(source.id) ?? asString(row.id);
+  // The graph stores an integer `id` (HydraDB requires it) and keeps the
+  // original memory key — "frame_12" — in `key`. The key is the public id.
+  const id =
+    asString(source.key) ??
+    asString(row.key) ??
+    asString(source.id) ??
+    asString(row.id);
   if (!id) return null;
 
   const type = (asString(source.type) ?? asString(source.episode_type) ?? "memory") as MemoryNodeType;
@@ -37,7 +43,11 @@ export function rowToMemoryNode(row: Record<string, unknown>): MemoryNode | null
     type,
     title: asString(source.title) ?? (content.slice(0, 60) || null),
     content,
-    metadata: source,
+    // Query columns arrive as both "e.title" and "title"; keep only the plain
+    // names so metadata is not a duplicated mess.
+    metadata: Object.fromEntries(
+      Object.entries(source).filter(([name]) => !name.includes("."))
+    ),
     source_type: (asString(source.source_type) as MemorySourceType | null) ?? null,
     source_id: asNumber(source.source_id),
     app_name: asString(source.app_name),

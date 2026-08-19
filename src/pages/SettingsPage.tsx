@@ -1,136 +1,48 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import {
-  Brain,
-  ChevronLeft,
-  HardDrive,
-  Keyboard,
-  Layout,
-  Settings as SettingsIcon,
-  Shield,
-  Video,
-} from "lucide-react";
-import { AppSidebar } from "@/components/app-sidebar";
+import { ChevronLeft } from "lucide-react";
+import { AppShell, NavButton } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { cn, formatShortcut } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Kbd } from "@/components/ui/kbd";
+import { PageHeader } from "@/components/ui/page-header";
+import { SettingRow } from "@/components/ui/setting-row";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { formatShortcut } from "@/lib/utils";
+import {
+  SETTINGS_NAV,
+  SETTINGS_SECTIONS,
+  findSettingsSection,
+  type SettingsSection,
+} from "@/lib/nav";
 import { useSettingsStore } from "@/lib/stores/settings-store";
 import { useRecordingStore } from "@/lib/stores/recording-store";
 import { api, type AppConfig } from "@/lib/api/client";
 import { electron } from "@/lib/electron";
-import { initialRuntimeStatus, type ModelProvider, type RuntimeStatus } from "@/lib/runtime";
+import {
+  PHASE_LABELS,
+  initialRuntimeStatus,
+  type ModelProvider,
+  type RuntimeStatus,
+} from "@/lib/runtime";
 
-type SettingsSection =
-  | "display"
-  | "general"
-  | "recording"
-  | "ai"
-  | "shortcuts"
-  | "privacy"
-  | "storage";
-
-const NAV_GROUPS: {
-  label: string;
-  items: { id: SettingsSection; label: string; icon: React.ElementType }[];
-}[] = [
-  {
-    label: "App",
-    items: [
-      { id: "display", label: "Display", icon: Layout },
-      { id: "general", label: "General", icon: SettingsIcon },
-      { id: "shortcuts", label: "Shortcuts", icon: Keyboard },
-    ],
-  },
-  {
-    label: "Capture",
-    items: [
-      { id: "recording", label: "Recording", icon: Video },
-      { id: "privacy", label: "Privacy", icon: Shield },
-    ],
-  },
-  {
-    label: "Data & AI",
-    items: [
-      { id: "ai", label: "AI", icon: Brain },
-      { id: "storage", label: "Storage", icon: HardDrive },
-    ],
-  },
+const PROVIDERS: { value: ModelProvider; label: string }[] = [
+  { value: "gemini", label: "Gemini" },
+  { value: "openai", label: "OpenAI" },
+  { value: "anthropic", label: "Anthropic" },
 ];
 
-const SECTION_TITLES: Record<SettingsSection, string> = {
-  display: "Display",
-  general: "General",
-  recording: "Recording",
-  ai: "AI",
-  shortcuts: "Shortcuts",
-  privacy: "Privacy",
-  storage: "Storage",
-};
-
-function SettingRow({
-  label,
-  description,
-  children,
-}: {
-  label: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-4 border-b border-border last:border-b-0">
-      <div className="min-w-0">
-        <div className="text-sm font-medium">{label}</div>
-        {description && (
-          <div className="text-xs text-muted-foreground mt-0.5">{description}</div>
-        )}
-      </div>
-      <div className="shrink-0">{children}</div>
-    </div>
-  );
-}
-
-function Toggle({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        "w-10 h-5 rounded-full relative transition-colors duration-150",
-        checked ? "bg-primary" : "bg-muted",
-        disabled && "opacity-50 cursor-not-allowed"
-      )}
-    >
-      <span
-        className={cn(
-          "absolute top-0.5 w-4 h-4 rounded-full bg-background shadow-sm transition-all duration-150",
-          checked ? "right-0.5" : "left-0.5"
-        )}
-      />
-    </button>
-  );
-}
-
 function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-        ok ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-      )}
-    >
-      {label}
-    </span>
-  );
+  return <Badge variant={ok ? "accent" : "default"}>{label}</Badge>;
 }
 
 function DisplaySection() {
@@ -138,25 +50,25 @@ function DisplaySection() {
 
   return (
     <>
-      <SettingRow label="Appearance" description="Olive dark and light surfaces">
-        <Toggle
+      <SettingRow label="Dark Appearance" description="Warm dark surfaces instead of light paper">
+        <Switch
           checked={settings.theme === "dark"}
-          onChange={(v) => setSetting("theme", v ? "dark" : "light")}
+          onCheckedChange={(v) => setSetting("theme", v ? "dark" : "light")}
         />
       </SettingRow>
-      <SettingRow label="Translucent sidebar" description="Frosted sidebar overlay">
-        <Toggle
+      <SettingRow label="Translucent Sidebar" description="Frosted sidebar overlay">
+        <Switch
           checked={settings.translucentSidebar}
-          onChange={(v) => setSetting("translucentSidebar", v)}
+          onCheckedChange={(v) => setSetting("translucentSidebar", v)}
         />
       </SettingRow>
-      <SettingRow label="Hide timeline" description="Remove timeline from the sidebar">
-        <Toggle
+      <SettingRow label="Hide History" description="Remove History from the sidebar">
+        <Switch
           checked={settings.disableTimeline}
-          onChange={(v) => setSetting("disableTimeline", v)}
+          onCheckedChange={(v) => setSetting("disableTimeline", v)}
         />
       </SettingRow>
-      <SettingRow label="Font size" description={`${settings.fontSize}px base`}>
+      <SettingRow label="Text Size" description={`${settings.fontSize}px base`}>
         <input
           type="range"
           min={14}
@@ -164,6 +76,7 @@ function DisplaySection() {
           value={settings.fontSize}
           onChange={(e) => setSetting("fontSize", Number(e.target.value))}
           className="w-32 accent-primary"
+          aria-label="Base text size"
         />
       </SettingRow>
     </>
@@ -192,26 +105,24 @@ function GeneralSection() {
 
   return (
     <>
-      <SettingRow label="Launch at login" description="Open Chronicle when you sign in">
-        <Toggle checked={settings.launchAtStartup} onChange={toggleLaunchAtStartup} />
+      <SettingRow label="Launch at Login" description="Open Chronicle when you sign in">
+        <Switch checked={settings.launchAtStartup} onCheckedChange={toggleLaunchAtStartup} />
       </SettingRow>
       <SettingRow label="Version" description="Installed app version">
-        <span className="text-sm text-muted-foreground tabular-nums">{version}</span>
+        <span className="text-sm tabular-nums text-muted-foreground">{version}</span>
       </SettingRow>
-      <SettingRow label="Runtime logs" description="Open the local runtime log folder">
+      <SettingRow label="Runtime Logs" description="Open the local runtime log folder">
         <Button variant="outline" size="sm" onClick={() => void electron?.runtime.openLogs()}>
-          Open logs
+          Open Logs
         </Button>
       </SettingRow>
       <SettingRow label="Updates" description="Download the latest release">
         <Button
           variant="outline"
           size="sm"
-          onClick={() =>
-            void electron?.openExternal("https://github.com/hydra-db/hydradb")
-          }
+          onClick={() => void electron?.openExternal("https://github.com/hydra-db/hydradb")}
         >
-          Check releases
+          Check Releases
         </Button>
       </SettingRow>
     </>
@@ -241,23 +152,27 @@ function RecordingSection() {
   return (
     <>
       <SettingRow
-        label="Screen capture"
-        description={isConnected ? `${framesCaptured.toLocaleString()} frames captured` : "Backend offline"}
+        label="Screen Capture"
+        description={
+          isConnected
+            ? `${framesCaptured.toLocaleString()} snapshots captured`
+            : "Recorder offline"
+        }
       >
-        <Toggle
+        <Switch
           checked={screenOn}
           disabled={!isConnected}
-          onChange={(on) => void (on ? resumeAll() : pauseAll())}
+          onCheckedChange={(on) => void (on ? resumeAll() : pauseAll())}
         />
       </SettingRow>
-      <SettingRow label="Meeting audio" description="Record microphone and meeting playback">
-        <Toggle
+      <SettingRow label="Meeting Audio" description="Record microphone and meeting playback">
+        <Switch
           checked={meetingActive}
           disabled={!isConnected}
-          onChange={() => void toggleMeeting()}
+          onCheckedChange={() => void toggleMeeting()}
         />
       </SettingRow>
-      <SettingRow label="Engine status" description="Local capture backend connection">
+      <SettingRow label="Recorder Status" description="Local capture service connection">
         <StatusBadge ok={isConnected} label={isConnected ? "Connected" : "Offline"} />
       </SettingRow>
     </>
@@ -297,53 +212,59 @@ function AiSection() {
     }
   };
 
+  const providerLabel = PROVIDERS.find((p) => p.value === provider)?.label ?? provider;
+
   return (
     <>
       <SettingRow label="Runtime" description={runtime.message}>
-        <StatusBadge
-          ok={runtime.phase === "ready"}
-          label={runtime.phase === "ready" ? "Ready" : runtime.phase}
-        />
+        <StatusBadge ok={runtime.phase === "ready"} label={PHASE_LABELS[runtime.phase]} />
       </SettingRow>
-      <SettingRow label="Memory graph" description="Local HydraDB graph node">
+      <SettingRow label="Memory Graph" description="Local HydraDB graph node">
         <StatusBadge ok={runtime.memoryReady} label={runtime.memoryReady ? "Running" : "Stopped"} />
       </SettingRow>
-      <SettingRow label="Capture backend" description="Screen and audio engine">
-        <StatusBadge ok={runtime.backendReady} label={runtime.backendReady ? "Running" : "Stopped"} />
+      <SettingRow label="Recorder" description="Screen and audio capture service">
+        <StatusBadge
+          ok={runtime.backendReady}
+          label={runtime.backendReady ? "Running" : "Stopped"}
+        />
       </SettingRow>
-      <SettingRow label="Chat model" description="Used for chat and summaries">
+      <SettingRow label="Chat Model" description="Used for chat and summaries">
         <span className="text-sm text-muted-foreground">{config?.model ?? "—"}</span>
       </SettingRow>
-      <SettingRow label="Speech-to-text" description="Meeting transcription engine">
+      <SettingRow label="Speech to Text" description="Meeting transcription engine">
         <span className="text-sm text-muted-foreground">{config?.stt_engine ?? "—"}</span>
       </SettingRow>
       <SettingRow
-        label="API key"
+        label="API Key"
         description={
           providerConfigured
-            ? `${provider} key saved — enter a new one to replace it`
+            ? `${providerLabel} key saved — enter a new one to replace it`
             : "Required for AI chat and meeting summaries"
         }
       >
-        <div className="flex flex-col items-end gap-2">
-          <select
-            value={provider}
-            onChange={(e) => setProvider(e.target.value as ModelProvider)}
-            className="h-8 rounded-md border border-border bg-background px-2 text-xs"
-          >
-            <option value="gemini">Gemini</option>
-            <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic</option>
-          </select>
-          <input
+        <div className="flex w-48 flex-col items-stretch gap-2">
+          <Select value={provider} onValueChange={(v) => setProvider(v as ModelProvider)}>
+            <SelectTrigger className="h-8 text-xs" aria-label="Model provider">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PROVIDERS.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder="Paste API key"
-            className="h-8 w-44 rounded-md border border-border bg-background px-2 text-xs"
+            autoComplete="off"
+            className="h-8 text-xs"
           />
           <Button size="sm" disabled={!apiKey.trim() || saving} onClick={() => void saveProvider()}>
-            {saving ? "Saving…" : "Save key"}
+            {saving ? "Saving…" : "Save Key"}
           </Button>
         </div>
       </SettingRow>
@@ -353,27 +274,21 @@ function AiSection() {
 
 function ShortcutsSection() {
   const shortcuts = [
-    ["Global search", "Cmd+K"],
-    ["New chat window", "Cmd+N"],
+    ["Global Search", "Cmd+K"],
+    ["New Chat Window", "Cmd+N"],
   ] as const;
 
   return (
-    <div className="space-y-1">
+    <>
       {shortcuts.map(([label, keys]) => (
-        <div
-          key={label}
-          className="flex justify-between items-center py-2.5 border-b border-border last:border-b-0"
-        >
-          <span className="text-sm">{label}</span>
-          <kbd className="inline-flex h-6 items-center rounded border border-border bg-muted px-2 text-xs font-medium text-muted-foreground">
-            {formatShortcut(keys)}
-          </kbd>
-        </div>
+        <SettingRow key={label} label={label}>
+          <Kbd className="h-6 px-2 text-xs">{formatShortcut(keys)}</Kbd>
+        </SettingRow>
       ))}
-      <p className="text-xs text-muted-foreground pt-3">
+      <p className="pt-3 text-xs text-muted-foreground">
         Shortcuts work while Chronicle is focused.
       </p>
-    </div>
+    </>
   );
 }
 
@@ -401,7 +316,7 @@ function PrivacySection() {
 
   const items = permissions
     ? [
-        { id: "screen" as const, label: "Screen recording", status: permissions.screen },
+        { id: "screen" as const, label: "Screen Recording", status: permissions.screen },
         { id: "microphone" as const, label: "Microphone", status: permissions.microphone },
         {
           id: "accessibility" as const,
@@ -437,7 +352,7 @@ function PrivacySection() {
         );
       })}
       {permissions?.platform !== "darwin" && (
-        <p className="text-xs text-muted-foreground pt-2">
+        <p className="pt-2 text-xs text-muted-foreground">
           Permission prompts are managed by your OS on {permissions?.platform ?? "this platform"}.
         </p>
       )}
@@ -462,47 +377,30 @@ function StorageSection() {
 
   return (
     <>
-      <SettingRow label="Frames" description="Captured screen frames stored locally">
-        <span className="text-sm text-muted-foreground tabular-nums">
+      <SettingRow label="Snapshots" description="Captured screen snapshots stored locally">
+        <span className="text-sm tabular-nums text-muted-foreground">
           {health?.frames_captured?.toLocaleString() ?? "—"}
         </span>
       </SettingRow>
-      <SettingRow label="Audio chunks" description="Transcribed meeting segments">
-        <span className="text-sm text-muted-foreground tabular-nums">
+      <SettingRow label="Audio Segments" description="Transcribed meeting segments">
+        <span className="text-sm tabular-nums text-muted-foreground">
           {health?.audio_chunks?.toLocaleString() ?? "—"}
         </span>
       </SettingRow>
-      <SettingRow label="Memory nodes" description="Items in your local memory graph">
-        <span className="text-sm text-muted-foreground tabular-nums">
+      <SettingRow label="Memories" description="Items in your local memory graph">
+        <span className="text-sm tabular-nums text-muted-foreground">
           {memory?.nodes?.toLocaleString() ?? "—"}
         </span>
       </SettingRow>
-      <SettingRow label="OCR" description="Text extraction from screen frames">
+      <SettingRow label="Text Extraction" description="Reading text out of screen snapshots">
         <StatusBadge ok={config?.ocr_enabled ?? false} label={config?.ocr_enabled ? "On" : "Off"} />
       </SettingRow>
-      <SettingRow label="Data folder" description={config?.data_dir ?? "Local storage path"}>
+      <SettingRow label="Data Folder" description={config?.data_dir ?? "Local storage path"}>
         <Button variant="outline" size="sm" disabled={!config?.data_dir} onClick={openDataFolder}>
-          Open folder
+          Open Folder
         </Button>
       </SettingRow>
     </>
-  );
-}
-
-function SectionContent({ section }: { section: SettingsSection }) {
-  return (
-    <div className="max-w-2xl">
-      <h2 className="text-lg font-semibold mb-6">{SECTION_TITLES[section]}</h2>
-      <div className="rounded-lg border border-border p-6 bg-card">
-        {section === "display" && <DisplaySection />}
-        {section === "general" && <GeneralSection />}
-        {section === "recording" && <RecordingSection />}
-        {section === "ai" && <AiSection />}
-        {section === "shortcuts" && <ShortcutsSection />}
-        {section === "privacy" && <PrivacySection />}
-        {section === "storage" && <StorageSection />}
-      </div>
-    </div>
   );
 }
 
@@ -510,51 +408,62 @@ export function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const rawSection = searchParams.get("section") || "display";
-  const validSections = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.id));
-  const section = (validSections.includes(rawSection as SettingsSection)
+  const section = (SETTINGS_SECTIONS.some((i) => i.id === rawSection)
     ? rawSection
     : "display") as SettingsSection;
+  const active = findSettingsSection(section);
 
-  return (
-    <div className="flex h-screen min-h-0 flex-1">
-      <AppSidebar>
-        <div className="flex flex-col h-full">
-          <button onClick={() => navigate("/home")} className="nav-item w-full mb-2">
-            <ChevronLeft className="w-4 h-4" />
-            Back
-          </button>
-          <div className="flex-1 overflow-y-auto scrollbar-hide space-y-4">
-            {NAV_GROUPS.map((group) => (
-              <div key={group.label}>
-                <div className="px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
-                  {group.label}
-                </div>
-                <div className="space-y-0.5">
-                  {group.items.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => setSearchParams({ section: item.id })}
-                        className={cn(
-                          "nav-item w-full",
-                          section === item.id && "nav-item-active"
-                        )}
-                      >
-                        <Icon className="w-4 h-4 shrink-0" />
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+  const nav = (
+    <>
+      {SETTINGS_NAV.map((group) => (
+        <div key={group.label} className="mb-3 last:mb-0">
+          <div className="px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
+            {group.label}
+          </div>
+          <div className="space-y-0.5">
+            {group.items.map((item) => (
+              <NavButton
+                key={item.id}
+                icon={item.icon}
+                label={item.label}
+                active={section === item.id}
+                onClick={() => setSearchParams({ section: item.id })}
+              />
             ))}
           </div>
         </div>
-      </AppSidebar>
-      <div className="flex-1 overflow-y-auto scrollbar-minimal p-8">
-        <SectionContent section={section} />
+      ))}
+    </>
+  );
+
+  const headerLeading = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8"
+      onClick={() => navigate("/home")}
+      aria-label="Back to Chronicle"
+    >
+      <ChevronLeft className="h-4 w-4" />
+    </Button>
+  );
+
+  return (
+    <AppShell nav={nav} headerLeading={headerLeading}>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <PageHeader title={active?.label ?? "Preferences"} description={active?.description} />
+        <div className="scrollbar-minimal min-h-0 flex-1 overflow-y-auto p-6">
+          <Card padding="lg" className="max-w-2xl">
+            {section === "display" && <DisplaySection />}
+            {section === "general" && <GeneralSection />}
+            {section === "recording" && <RecordingSection />}
+            {section === "ai" && <AiSection />}
+            {section === "shortcuts" && <ShortcutsSection />}
+            {section === "privacy" && <PrivacySection />}
+            {section === "storage" && <StorageSection />}
+          </Card>
+        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

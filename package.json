@@ -2,7 +2,7 @@
   "name": "chronicle",
   "version": "1.0.0",
   "packageManager": "npm@11.18.0",
-  "description": "Chronicle — AI desktop app with local screen and audio capture",
+  "description": "Chronicle — A local-first AI workspace that remembers your work.",
   "author": "Chronicle",
   "main": "dist-electron/main.js",
   "type": "module",

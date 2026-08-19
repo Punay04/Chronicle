@@ -15,7 +15,7 @@ export function ChatSidebar() {
   return (
     <div className="flex flex-col h-full">
       <div className="px-3 py-3 border-b border-border flex justify-between items-center">
-        <span className="text-xs font-medium text-muted-foreground">Threads</span>
+        <span className="text-xs font-medium text-muted-foreground">Conversations</span>
         <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => createSession()}>
           <Plus className="w-3.5 h-3.5" />
           New
@@ -27,7 +27,7 @@ export function ChatSidebar() {
             key={session.id}
             onClick={() => setCurrent(session.id)}
             className={cn(
-              "w-full rounded-md px-3 py-2 text-left transition-colors duration-150",
+              "w-full rounded-md px-3 py-2 text-left transition-colors duration-fast",
               currentId === session.id
                 ? "bg-accent text-foreground"
                 : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"

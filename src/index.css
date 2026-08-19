@@ -5,48 +5,44 @@
 @layer base {
   :root {
     color-scheme: light;
-    --background: 68 42% 87%;
-    --foreground: 70 23% 21%;
-    --surface: 70 41% 97%;
-    --surface-secondary: 63 53% 93%;
-    --surface-tertiary: 65 44% 89%;
-    --card: 63 53% 93%;
-    --card-foreground: 70 23% 21%;
-    --card-hover: 70 41% 97%;
+    --background: 60 20% 96%;
+    --foreground: 70 14% 18%;
+    --surface: 60 24% 98%;
+    --surface-secondary: 60 16% 94%;
+    --surface-tertiary: 60 14% 91%;
+    --card: 60 24% 98%;
+    --card-foreground: 70 14% 18%;
+    --card-hover: 60 16% 94%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 6% 10%;
-    --primary: 70 23% 21%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 67 32% 32%;
-    --primary-muted: 65 44% 89%;
-    --secondary: 65 44% 89%;
-    --secondary-foreground: 70 23% 21%;
-    --secondary-hover: 63 53% 93%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --destructive-hover: 0 72% 45%;
-    --destructive-muted: 0 72% 97%;
-    --muted: 65 44% 89%;
-    --muted-foreground: 67 32% 32%;
-    --accent: 63 53% 93%;
-    --accent-foreground: 70 23% 21%;
-    --accent-hover: 66 33% 74%;
-    --border: 66 33% 74%;
-    --input: 66 33% 74%;
-    --input-focus: 67 32% 32%;
-    --ring: 67 32% 32%;
-    --text-primary: 70 23% 21%;
-    --text-secondary: 67 32% 32%;
-    --text-tertiary: 66 18% 48%;
-    --text-disabled: 66 12% 62%;
-    --sidebar-background: 0 6% 10%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 70 23% 21%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 100%;
-    --sidebar-accent-foreground: 68 42% 87%;
-    --sidebar-border: 0 0% 100%;
-    --sidebar-ring: 67 32% 32%;
+    --popover-foreground: 70 14% 18%;
+    --primary: 74 30% 38%;
+    --primary-foreground: 60 24% 98%;
+    --primary-hover: 74 32% 31%;
+    --primary-muted: 70 22% 90%;
+    --secondary: 60 16% 94%;
+    --secondary-foreground: 70 14% 18%;
+    --secondary-hover: 60 14% 91%;
+    --destructive: 4 62% 46%;
+    --destructive-foreground: 60 24% 98%;
+    --destructive-hover: 4 62% 39%;
+    --destructive-muted: 6 60% 96%;
+    --muted: 60 16% 94%;
+    --muted-foreground: 68 8% 45%;
+    --accent: 60 16% 94%;
+    --accent-foreground: 70 14% 18%;
+    --accent-hover: 60 14% 91%;
+    --border: 65 12% 86%;
+    --input: 65 12% 86%;
+    --input-focus: 74 30% 38%;
+    --ring: 74 30% 38%;
+    --sidebar-background: 60 16% 94%;
+    --sidebar-foreground: 70 14% 18%;
+    --sidebar-primary: 74 30% 38%;
+    --sidebar-primary-foreground: 60 24% 98%;
+    --sidebar-accent: 60 14% 91%;
+    --sidebar-accent-foreground: 70 14% 18%;
+    --sidebar-border: 65 12% 86%;
+    --sidebar-ring: 74 30% 38%;
     --radius: 0.625rem;
     --font-size-base: 14px;
     --text-xs: calc(var(--font-size-base) * 0.857);
@@ -89,17 +85,13 @@
     --accent-hover: 36 7% 18%;
     --border: 0 0% 18%;
     --input: 0 0% 18%;
-    --input-focus: 67 32% 32%;
-    --ring: 67 32% 32%;
-    --text-primary: 65 44% 89%;
-    --text-secondary: 66 18% 48%;
-    --text-tertiary: 66 12% 42%;
-    --text-disabled: 66 8% 36%;
+    --input-focus: 68 50% 74%;
+    --ring: 68 50% 74%;
     --sidebar-background: 0 6% 10%;
     --sidebar-foreground: 65 44% 89%;
     --sidebar-primary: 68 50% 74%;
     --sidebar-primary-foreground: 0 6% 10%;
-    --sidebar-accent: 0 0% 100%;
+    --sidebar-accent: 36 6% 15%;
     --sidebar-accent-foreground: 68 50% 74%;
     --sidebar-border: 0 0% 18%;
     --sidebar-ring: 67 32% 32%;
@@ -183,6 +175,17 @@
     border-radius: 999px;
   }
 
+  /* Electron window dragging. macOS uses titleBarStyle "hiddenInset", so the
+     app's own header has to provide the drag surface; interactive children
+     must opt back out with .no-drag or they stop receiving clicks. */
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
   .vibrant-sidebar {
     background-color: hsl(var(--sidebar-background) / 0.92) !important;
     backdrop-filter: blur(12px);
@@ -191,21 +194,11 @@
 }
 
 @layer components {
-  .page-header {
-    @apply px-6 py-5 border-b border-border shrink-0 bg-background;
-  }
-
-  .page-header-title {
-    @apply text-lg font-semibold text-foreground tracking-tight;
-    font-family: "Fraunces", "Times New Roman", serif;
-  }
-
-  .page-header-desc {
-    @apply text-sm text-muted-foreground mt-0.5;
-  }
-
+  /* Page titles, cards, and empty states are components now — see
+     src/components/ui/. Only the sidebar nav row stays as a class, because it
+     is styled identically from two different nav sources. */
   .nav-item {
-    @apply flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors duration-150;
+    @apply flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors duration-fast;
   }
 
   .nav-item:hover {
@@ -214,14 +207,6 @@
 
   .nav-item-active {
     @apply bg-primary/10 text-primary;
-  }
-
-  .surface-card {
-    @apply rounded-lg border border-border bg-card p-4 transition-colors duration-150;
-  }
-
-  .surface-card:hover {
-    @apply border-primary/25;
   }
 }
 

@@ -7,7 +7,7 @@ import {
   type OnboardingStep,
 } from "@/lib/stores/onboarding-store";
 import { electron, type PermissionStatus } from "@/lib/electron";
-import { api, type ConnectorInfo } from "@/lib/api/client";
+import { api, type ConnectorInfo, type PipeListItem } from "@/lib/api/client";
 
 const STEPS: OnboardingStep[] = ["login", "permissions", "engine", "connect-apps", "pipe"];
 
@@ -42,7 +42,7 @@ function LoginSlide({ onNext }: { onNext: () => void }) {
       <div className="text-center">
         <h1 className="text-3xl font-semibold tracking-tight mb-2">Chronicle</h1>
         <p className="text-sm text-muted-foreground max-w-xs">
-          Your local AI workspace for screen, audio, and context
+          A local-first AI workspace that remembers your work
         </p>
       </div>
       <Button onClick={onNext} className="w-full max-w-xs">
@@ -142,7 +142,7 @@ function PermissionsSlide({ onNext }: { onNext: () => void }) {
                 ? "Granted"
                 : status?.[permission.id] === "not-determined"
                   ? "Grant"
-                  : "Open settings"}
+                  : "Open Settings"}
             </Button>
           </div>
         ))}
@@ -178,14 +178,14 @@ function EngineSlide({ onNext }: { onNext: () => void }) {
 
   const statusLabel = {
     starting: "Starting…",
-    ready: "Engine ready",
-    error: "Engine error",
+    ready: "Recorder ready",
+    error: "Recorder error",
     idle: "Not started",
   }[status];
 
   return (
     <OnboardingShell
-      title="Start engine"
+      title="Start Recorder"
       description="The capture engine runs locally on your machine."
       footer={
         <Button onClick={onNext} disabled={status !== "ready"} className="mt-auto">
@@ -336,29 +336,41 @@ function ConnectAppsSlide({ onNext }: { onNext: () => void }) {
 }
 
 function PickWorkflowSlide({ onComplete }: { onComplete: () => void }) {
-  const workflows = ["Daily summary", "Meeting recap", "Focus tracker"];
+  // Sourced from the backend catalog rather than hardcoded, so this list cannot
+  // drift from the routines the app actually ships.
+  const [routines, setRoutines] = useState<PipeListItem[]>([]);
+
+  useEffect(() => {
+    void api
+      .pipes()
+      .then((res) => setRoutines(res.data))
+      .catch(() => setRoutines([]));
+  }, []);
 
   return (
     <OnboardingShell
-      title="Pick a workflow"
-      description="Choose your first automation workflow."
+      title="Pick a routine"
+      description="Choose your first automation."
       footer={
         <button
           onClick={onComplete}
-          className="text-sm text-muted-foreground hover:text-foreground mt-auto text-center"
+          className="mt-auto text-center text-sm text-muted-foreground hover:text-foreground"
         >
-          Skip for now
+          Skip for Now
         </button>
       }
     >
       <div className="flex flex-col gap-2">
-        {workflows.map((workflow) => (
+        {routines.map((routine) => (
           <button
-            key={workflow}
+            key={routine.id}
             onClick={onComplete}
-            className="rounded-lg border border-border px-4 py-3 text-left text-sm font-medium hover:bg-accent transition-colors duration-150"
+            className="rounded-lg border border-border px-4 py-3 text-left transition-colors duration-fast hover:bg-accent"
           >
-            {workflow}
+            <span className="block text-sm font-medium">{routine.name}</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              {routine.description}
+            </span>
           </button>
         ))}
       </div>
@@ -405,7 +417,7 @@ export function OnboardingPage() {
   return (
     <div
       className={cn(
-        "bg-background transition-opacity duration-300",
+        "bg-background transition-opacity duration-slow",
         visible ? "opacity-100" : "opacity-0"
       )}
     >

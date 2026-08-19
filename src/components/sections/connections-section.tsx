@@ -2,7 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Loader2, Plug, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { api, type ConnectorInfo } from "@/lib/api/client";
+import { findMainSection } from "@/lib/nav";
 import { electron } from "@/lib/electron";
 
 const STATUS_POLL_MS = 2500;
@@ -23,7 +26,7 @@ export function ConnectionsSection() {
       setConnectors(res.data);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "failed to load connectors");
+      setError(err instanceof Error ? err.message : "Could not load your integrations");
     } finally {
       setLoading(false);
     }
@@ -46,7 +49,7 @@ export function ConnectionsSection() {
       return next;
     });
 
-  const pollUntilActive = (toolkit: string, connectedAccountId: string) => {
+  const pollUntilActive = (toolkit: string, label: string, connectedAccountId: string) => {
     let attempts = 0;
     const existing = pollers.current.get(toolkit);
     if (existing) clearInterval(existing);
@@ -59,7 +62,7 @@ export function ConnectionsSection() {
           clearInterval(timer);
           pollers.current.delete(toolkit);
           setBusyFor(toolkit, false);
-          toast.success(`${toolkit} connected`);
+          toast.success(`${label} connected`);
           void load();
           return;
         }
@@ -70,7 +73,7 @@ export function ConnectionsSection() {
         clearInterval(timer);
         pollers.current.delete(toolkit);
         setBusyFor(toolkit, false);
-        toast.error(`${toolkit} connection timed out — try again`);
+        toast.error(`${label} connection timed out — try again`);
       }
     }, STATUS_POLL_MS);
 
@@ -90,12 +93,12 @@ export function ConnectionsSection() {
       if (redirectUrl) {
         if (electron?.openExternal) await electron.openExternal(redirectUrl);
         else window.open(redirectUrl, "_blank");
-        toast.info(`authorize ${conn.name} in your browser…`);
+        toast.info(`Authorize ${conn.name} in your browser…`);
       }
-      pollUntilActive(conn.toolkit, connectedAccountId);
+      pollUntilActive(conn.toolkit, conn.name, connectedAccountId);
     } catch (err) {
       setBusyFor(conn.toolkit, false);
-      toast.error(err instanceof Error ? err.message : "failed to connect");
+      toast.error(err instanceof Error ? err.message : "Could not connect");
     }
   };
 
@@ -107,49 +110,44 @@ export function ConnectionsSection() {
       toast.success(`${conn.name} disconnected`);
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "failed to disconnect");
+      toast.error(err instanceof Error ? err.message : "Could not disconnect");
     } finally {
       setBusyFor(conn.toolkit, false);
     }
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 overflow-y-auto scrollbar-minimal">
-      <div className="page-header flex items-center justify-between">
-        <div>
-          <h1 className="page-header-title">Connections</h1>
-          <p className="page-header-desc">Third-party integrations via Composio</p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2"
-          onClick={() => void load()}
-        >
-          <RefreshCw className="w-3 h-3" /> refresh
-        </Button>
-      </div>
+    <div className="flex h-full min-h-0 flex-1 flex-col">
+      <PageHeader
+        title="Integrations"
+        description={findMainSection("connections")?.description}
+        actions={
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => void load()}>
+            <RefreshCw className="h-3 w-3" /> Refresh
+          </Button>
+        }
+      />
 
-      <div className="p-6 grid gap-3 max-w-xl">
+      <div className="scrollbar-minimal grid min-h-0 max-w-xl flex-1 content-start gap-3 overflow-y-auto p-6">
         {loading && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
           </div>
         )}
 
         {!loading && !configured && (
-          <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-            composio is not configured. add{" "}
+          <Card variant="muted" className="text-sm text-muted-foreground">
+            Composio is not configured. Add{" "}
             <span className="text-foreground">COMPOSIO_API_KEY</span> and the{" "}
-            <span className="text-foreground">COMPOSIO_AUTH_CONFIG_*</span> ids to
-            your <span className="text-foreground">.env</span>, then restart.
-          </div>
+            <span className="text-foreground">COMPOSIO_AUTH_CONFIG_*</span> ids to your{" "}
+            <span className="text-foreground">.env</span>, then restart.
+          </Card>
         )}
 
         {!loading && error && (
-          <div className="rounded-lg border border-border p-4 text-sm text-destructive">
+          <Card variant="muted" className="text-sm text-destructive">
             {error}
-          </div>
+          </Card>
         )}
 
         {!loading &&
@@ -157,17 +155,12 @@ export function ConnectionsSection() {
           connectors.map((conn) => {
             const isBusy = busy.has(conn.toolkit);
             return (
-              <div
-                key={conn.toolkit}
-                className="surface-card flex items-center justify-between"
-              >
+              <Card key={conn.toolkit} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Plug className="w-4 h-4 text-muted-foreground" />
+                  <Plug className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">{conn.name}</span>
                   {!conn.configured && (
-                    <span className="text-xs text-muted-foreground">
-                      (no auth config)
-                    </span>
+                    <span className="text-xs text-muted-foreground">No auth config</span>
                   )}
                 </div>
                 <Button
@@ -183,18 +176,18 @@ export function ConnectionsSection() {
                 >
                   {isBusy ? (
                     <>
-                      <Loader2 className="w-3 h-3 animate-spin" />{" "}
-                      {conn.connected ? "…" : "connecting"}
+                      <Loader2 className="h-3 w-3 animate-spin" />{" "}
+                      {conn.connected ? "…" : "Connecting"}
                     </>
                   ) : conn.connected ? (
                     <>
-                      <Check className="w-3 h-3" /> connected
+                      <Check className="h-3 w-3" /> Connected
                     </>
                   ) : (
-                    "connect"
+                    "Connect"
                   )}
                 </Button>
-              </div>
+              </Card>
             );
           })}
       </div>

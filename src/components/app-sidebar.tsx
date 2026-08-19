@@ -28,17 +28,6 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const translucentSidebar = useSettingsStore((s) => s.settings.translucentSidebar);
   const isTranslucent = translucentSidebar !== false;
 
-  useEffect(() => {
-    if (isTranslucent) {
-      document.documentElement.classList.add("macos-vibrancy");
-      document.body.classList.add("macos-vibrancy");
-      return () => {
-        document.documentElement.classList.remove("macos-vibrancy");
-        document.body.classList.remove("macos-vibrancy");
-      };
-    }
-  }, [isTranslucent]);
-
   return (
     <SidebarContext.Provider value={{ isTranslucent }}>{children}</SidebarContext.Provider>
   );
@@ -101,9 +90,6 @@ export function AppSidebarLayout({ children }: { children: React.ReactNode }) {
       setIsResizing(false);
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
-      const stored = localStorage.getItem("chronicle-sidebar-width");
-      const finalWidth = stored ? Number(stored) : width;
-      localStorage.setItem("chronicle-sidebar-width", String(finalWidth));
     };
     document.addEventListener("pointermove", onMove);
     document.addEventListener("pointerup", onUp);
@@ -126,14 +112,22 @@ export function AppSidebarLayout({ children }: { children: React.ReactNode }) {
             style={{ width }}
             className={cn(
               "relative flex flex-col min-h-0 flex-shrink-0 border-r",
-              isResizing || !hydrated ? "" : "transition-[width] duration-300",
+              isResizing || !hydrated ? "" : "transition-[width] duration-slow",
               isTranslucent ? "vibrant-sidebar" : "bg-sidebar border-sidebar-border",
               slot.className
             )}
           >
+            {/*
+              The sidebar is a full-height column beside the page, so the app
+              header does not cover it. Reserve the header's height here or the
+              macOS traffic lights (titleBarStyle "hiddenInset") land on top of
+              the first nav item. Doubles as a drag handle and lines the first
+              item up with the page title.
+            */}
+            <div className="drag-region h-12 shrink-0" />
             <div
               ref={setContainer}
-              className="flex flex-col min-h-0 flex-1 overflow-x-hidden overflow-y-auto scrollbar-hide px-2 py-3"
+              className="flex flex-col min-h-0 flex-1 overflow-x-hidden overflow-y-auto scrollbar-hide px-2 pb-3"
             />
             <div
               role="separator"

@@ -7,22 +7,54 @@ import ForceGraph2D, {
 import type { MemoryNode } from "@/lib/api/client";
 import { linkEndpointId } from "@/lib/memory-graph";
 import { getFocusSet, isLinkFocused } from "@/lib/memory-graph-layout";
+import { cssColor, useThemeVersion } from "@/lib/theme-tokens";
 
-/** Olive graph — matches Chronicle primary ink / lime */
-const GRAPH = {
-  background: "transparent",
-  edge: "hsla(67, 32%, 32%, 0.45)",
-  edgeDim: "hsla(67, 32%, 32%, 0.12)",
-  edgeFocus: "hsla(68, 50%, 74%, 0.9)",
-  leaf: "hsl(68, 50%, 74%)",
-  leafActive: "hsl(66, 33%, 74%)",
-  leafMuted: "hsl(65, 44%, 89%)",
-  hubFill: "hsl(0, 6%, 10%)",
-  hubStroke: "hsl(66, 33%, 74%)",
-  hubText: "hsl(65, 44%, 89%)",
-  foreground: "hsl(70, 23%, 21%)",
-  dim: 0.22,
-};
+export interface GraphPalette {
+  background: string;
+  edge: string;
+  edgeDim: string;
+  edgeFocus: string;
+  leaf: string;
+  leafActive: string;
+  leafMuted: string;
+  hubFill: string;
+  hubStroke: string;
+  hubText: string;
+  hubGlow: string;
+  hubGlowActive: string;
+  foreground: string;
+  meeting: string;
+  app: string;
+  dim: number;
+}
+
+/**
+ * The graph palette, resolved from design tokens rather than hardcoded. This
+ * used to be a frozen literal palette that mixed light- and dark-mode values,
+ * so the graph never responded to a theme switch.
+ */
+export function graphPalette(): GraphPalette {
+  return {
+    background: "transparent",
+    edge: cssColor("--foreground", 0.28),
+    edgeDim: cssColor("--foreground", 0.08),
+    edgeFocus: cssColor("--primary", 0.9),
+    leaf: cssColor("--primary"),
+    leafActive: cssColor("--primary-hover"),
+    leafMuted: cssColor("--primary-muted"),
+    hubFill: cssColor("--card"),
+    hubStroke: cssColor("--border"),
+    hubText: cssColor("--foreground"),
+    hubGlow: cssColor("--primary", 0.06),
+    hubGlowActive: cssColor("--primary", 0.16),
+    foreground: cssColor("--foreground"),
+    // Hubs are differentiated within the palette rather than by introducing
+    // off-system hues.
+    meeting: cssColor("--foreground", 0.75),
+    app: cssColor("--muted-foreground"),
+    dim: 0.22,
+  };
+}
 
 export interface GraphLink {
   source: string | GraphNode;
@@ -81,11 +113,11 @@ function nodeRadius(type: string, salience: number, role?: "hub" | "leaf"): numb
   return base + salience * 2.5;
 }
 
-function hubAccent(node: GraphNode): string {
-  if (node.id === "hub-memory") return GRAPH.leaf;
-  if (node.type === "meeting") return "hsl(217, 86%, 58%)";
-  if (node.type === "app") return "hsl(217, 90%, 52%)";
-  return GRAPH.leaf;
+function hubAccent(node: GraphNode, palette: GraphPalette): string {
+  if (node.id === "hub-memory") return palette.leaf;
+  if (node.type === "meeting") return palette.meeting;
+  if (node.type === "app") return palette.app;
+  return palette.leaf;
 }
 
 export function memoryNodeToGraphNode(
@@ -133,6 +165,16 @@ export function MemoryGraphCanvas({
 
   const activeId = selectedId ?? hoverId;
   const focus = useMemo(() => getFocusSet(data, activeId), [data, activeId]);
+
+  // Re-resolve the palette whenever the theme class on <html> flips, then force
+  // the canvas to repaint — force-graph will not redraw on its own.
+  const themeVersion = useThemeVersion();
+  const GRAPH = useMemo(() => graphPalette(), [themeVersion]);
+
+  useEffect(() => {
+    // `refresh` exists on the force-graph instance but is missing from its types.
+    (graphRef.current as unknown as { refresh?: () => void } | undefined)?.refresh?.();
+  }, [GRAPH]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -208,7 +250,7 @@ export function MemoryGraphCanvas({
       ctx.globalAlpha = inFocus ? 1 : GRAPH.dim;
 
       if (node.role === "hub") {
-        const accent = hubAccent(node);
+        const accent = hubAccent(node, GRAPH);
         const label = node.label.toUpperCase();
         const fontSize = Math.max(9 / globalScale, 3.2);
         ctx.font = `600 ${fontSize}px "Figtree", system-ui, sans-serif`;
@@ -220,7 +262,7 @@ export function MemoryGraphCanvas({
 
         ctx.beginPath();
         ctx.arc(x, y, Math.max(boxW, boxH) * 0.55, 0, 2 * Math.PI);
-        ctx.fillStyle = isActive ? "hsla(217, 96%, 48%, 0.16)" : "hsla(217, 96%, 48%, 0.06)";
+        ctx.fillStyle = isActive ? GRAPH.hubGlowActive : GRAPH.hubGlow;
         ctx.fill();
 
         drawRoundedRect(ctx, x - boxW / 2, y - boxH / 2, boxW, boxH, 6 / globalScale);
@@ -265,7 +307,7 @@ export function MemoryGraphCanvas({
 
       ctx.globalAlpha = 1;
     },
-    [activeId, focus]
+    [activeId, focus, GRAPH]
   );
 
   const linkColor = useCallback(
@@ -274,7 +316,7 @@ export function MemoryGraphCanvas({
       if (!activeId) return GRAPH.edge;
       return focused ? GRAPH.edgeFocus : GRAPH.edgeDim;
     },
-    [activeId, focus]
+    [activeId, focus, GRAPH]
   );
 
   const linkWidth = useCallback(

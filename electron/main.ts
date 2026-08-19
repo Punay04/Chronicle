@@ -9,7 +9,7 @@ import {
 import Store from "electron-store";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getApiUrl, proxyApi } from "./backend-manager.js";
+import { getApiUrl, isOfflineError, proxyApi } from "./backend-manager.js";
 import { RuntimeManager } from "./runtime-manager.js";
 import type { ModelProvider } from "./runtime-types.js";
 
@@ -72,7 +72,9 @@ function createWindow(kind: WindowKind): BrowserWindow {
     frame: config.frame !== false,
     transparent: config.transparent ?? false,
     resizable: config.resizable !== false,
-    backgroundColor: config.transparent ? "#00000000" : "#1a1717",
+    // #1b1919 is --background in dark mode (0 6% 10%); keep the two in sync so
+    // the window does not flash a different shade before the renderer paints.
+    backgroundColor: config.transparent ? "#00000000" : "#1b1919",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     webPreferences: {
       preload: getPreloadPath(),
@@ -201,7 +203,13 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-ipcMain.handle("window:open", (_event, kind: WindowKind) => getOrCreateWindow(kind));
+ipcMain.handle("window:open", (_event, kind: WindowKind, section?: string) => {
+  const win = getOrCreateWindow(kind);
+  // An already-open window will not re-run its hash route, so tell the
+  // renderer to navigate instead.
+  if (section) win.webContents.send("navigate:section", section);
+  // Deliberately returns nothing: a BrowserWindow cannot be cloned over IPC.
+});
 ipcMain.handle("window:close", (event) => BrowserWindow.fromWebContents(event.sender)?.close());
 ipcMain.handle("window:set-size", (event, width: number, height: number) =>
   BrowserWindow.fromWebContents(event.sender)?.setSize(width, height)
@@ -286,10 +294,38 @@ ipcMain.handle("permissions:request", async (_event, permission: string) => {
 });
 
 ipcMain.handle("api:get-url", () => getApiUrl());
+
+// The renderer polls several endpoints every few seconds. If this handler
+// rejected, Electron would print a full stack for every failed call while the
+// backend is starting or stopped — four per tick. Return a result envelope
+// instead; the renderer unwraps it and throws, so callers are unchanged.
+let lastOfflineLog = 0;
+const OFFLINE_LOG_INTERVAL_MS = 30_000;
+
 ipcMain.handle(
   "api:request",
-  async (_event, method: string, requestPath: string, body?: unknown) =>
-    proxyApi(method, requestPath, body)
+  async (_event, method: string, requestPath: string, body?: unknown) => {
+    try {
+      return { ok: true as const, data: await proxyApi(method, requestPath, body) };
+    } catch (error) {
+      const offline = isOfflineError(error);
+      if (offline) {
+        // One line per 30s is enough to notice a backend that never came up.
+        const now = Date.now();
+        if (now - lastOfflineLog > OFFLINE_LOG_INTERVAL_MS) {
+          lastOfflineLog = now;
+          console.warn(`[main] capture backend not reachable at ${getApiUrl()}`);
+        }
+      } else {
+        console.error(`[main] api ${method} ${requestPath} failed:`, error);
+      }
+      return {
+        ok: false as const,
+        offline,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
 );
 ipcMain.handle("engine:start", async () => proxyApi("POST", "/engine/start"));
 ipcMain.handle("engine:stop", async () => proxyApi("POST", "/engine/stop"));

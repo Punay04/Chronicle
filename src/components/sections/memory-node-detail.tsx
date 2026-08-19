@@ -3,7 +3,9 @@ import { ChevronDown, X } from "lucide-react";
 import type { MemoryNode } from "@/lib/api/client";
 import type { GraphLink, MemoryGraphData } from "@/components/sections/memory-graph-canvas";
 import { linkEndpointId } from "@/lib/memory-graph";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { nodeTypeLabel, relationLabel } from "@/lib/memory-labels";
 import { cn } from "@/lib/utils";
 
 function formatDate(iso: string): string {
@@ -40,11 +42,11 @@ function Section({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-3 py-2 hover:bg-accent transition-colors duration-150 rounded-md"
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-accent transition-colors duration-fast rounded-md"
       >
         <span className="text-xs font-medium text-foreground">{title}</span>
         <ChevronDown
-          className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform duration-150", open && "rotate-180")}
+          className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform duration-fast", open && "rotate-180")}
         />
       </button>
       {open && <div className="px-3 pb-3 pt-1 flex flex-col gap-2">{children}</div>}
@@ -91,9 +93,9 @@ export function MemoryNodeDetail({
     >
       <div className="px-4 py-3 border-b border-border flex items-start justify-between gap-3 shrink-0">
         <div className="min-w-0 flex-1">
-          <span className="inline-block text-xs font-medium rounded-full border border-border px-2 py-0.5 mb-2 text-muted-foreground capitalize">
-            {node.type.replace(/_/g, " ")}
-          </span>
+          <Badge variant="outline" className="mb-2">
+            {nodeTypeLabel(node.type)}
+          </Badge>
           <p className="text-sm font-medium leading-snug">{nodeLabel(node)}</p>
         </div>
         {pinned && onClose && (
@@ -111,22 +113,22 @@ export function MemoryNodeDetail({
 
         <Section title="Source">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            {node.title ?? "Extracted memory from the local graph"}
+            {node.title ?? "Extracted from your local memory graph"}
           </p>
         </Section>
 
-        <Section title="Provenance">
+        <Section title="Origin">
           <Row label="Created" value={formatDate(node.created_at)} />
           <Row label="Updated" value={formatDate(node.updated_at)} />
           {node.app_name && <Row label="App" value={node.app_name} />}
           {node.window_name && <Row label="Window" value={node.window_name} />}
           {node.source_type && <Row label="Source" value={node.source_type} />}
-          <Row label="Salience" value={node.salience.toFixed(2)} />
+          <Row label="Importance" value={node.salience.toFixed(2)} />
         </Section>
 
-        <Section title="Relations" defaultOpen={connections.length > 0}>
+        <Section title="Related" defaultOpen={connections.length > 0}>
           {connections.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No connections yet.</p>
+            <p className="text-xs text-muted-foreground">Nothing links to this yet.</p>
           ) : (
             <div className="flex flex-col rounded-md border border-border overflow-hidden">
               {connections.map((link) => {
@@ -140,11 +142,11 @@ export function MemoryNodeDetail({
                     key={`${source}-${target}-${link.relation}`}
                     type="button"
                     onClick={() => onNavigate?.(otherId)}
-                    className="flex items-center justify-between px-3 py-2 border-b border-border last:border-b-0 hover:bg-accent transition-colors duration-150 text-left"
+                    className="flex items-center justify-between px-3 py-2 border-b border-border last:border-b-0 hover:bg-accent transition-colors duration-fast text-left"
                   >
                     <span className="text-xs truncate min-w-0">{other.label}</span>
-                    <span className="text-xs text-muted-foreground shrink-0 ml-2 capitalize">
-                      {link.relation.replace(/_/g, " ")}
+                    <span className="ml-2 shrink-0 text-xs text-muted-foreground">
+                      {relationLabel(link.relation)}
                     </span>
                   </button>
                 );

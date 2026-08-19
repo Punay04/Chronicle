@@ -1,9 +1,12 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Brain, Loader2, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api/client";
 import {
   MemoryGraphCanvas,
+  graphPalette,
   type MemoryGraphData,
 } from "@/components/sections/memory-graph-canvas";
 import { MemoryNodeDetail } from "@/components/sections/memory-node-detail";
@@ -15,12 +18,7 @@ import {
   mergeGraphResponse,
 } from "@/lib/memory-graph";
 import { countNodeKinds } from "@/lib/memory-graph-layout";
-
-const NODE_LEGEND = [
-  { color: "hsl(217, 96%, 48%)", label: "memory" },
-  { color: "hsl(216, 100%, 96%)", label: "context", ring: true },
-  { color: "hsla(217, 40%, 70%, 0.8)", label: "link", ring: true },
-];
+import { useThemeVersion } from "@/lib/theme-tokens";
 
 export function BrainSection() {
   const [query, setQuery] = useState("");
@@ -52,7 +50,7 @@ export function BrainSection() {
       );
       setGraph(expanded);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "failed to load memory graph");
+      setError(err instanceof Error ? err.message : "Could not load your memory graph");
     } finally {
       setLoading(false);
       setExpanding(false);
@@ -71,6 +69,18 @@ export function BrainSection() {
   }, [query, loadGraph]);
 
   const detailNode = selectedId ? getNodeById(graph, selectedId) : null;
+
+  // Legend colors come from the same palette the canvas paints with, so the two
+  // can no longer drift apart or ignore the active theme.
+  const themeVersion = useThemeVersion();
+  const legend = useMemo(() => {
+    const palette = graphPalette();
+    return [
+      { color: palette.leaf, label: "Memory" },
+      { color: palette.hubStroke, label: "Topic", ring: true },
+      { color: palette.edge, label: "Link", ring: true },
+    ];
+  }, [themeVersion]);
 
   const expandSelected = useCallback(async (id: string) => {
     if (id.startsWith("hub-")) return;
@@ -97,66 +107,68 @@ export function BrainSection() {
   );
 
   return (
-    <div className="flex flex-col h-full min-h-0 w-full flex-1 overflow-hidden">
-      <div className="page-header flex items-center gap-4 shrink-0 w-full">
-        <div className="min-w-0 shrink-0">
-          <h1 className="page-header-title">Brain</h1>
-          <p className="page-header-desc">
-            {graph.nodes.length} nodes · {graph.links.length} edges · {countNodeKinds(graph)}{" "}
-            kinds
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+      <PageHeader
+        title="Memory"
+        description={
+          <>
+            {graph.nodes.length} memories · {graph.links.length} links · {countNodeKinds(graph)}{" "}
+            types
             {expanding && " · Expanding…"}
-          </p>
-        </div>
-
-        <div className="hidden md:flex items-center gap-3 ml-4">
-          {NODE_LEGEND.map((item) => (
-            <div key={item.label} className="flex items-center gap-1.5">
-              <span
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{
-                  background: item.ring ? "transparent" : item.color,
-                  boxShadow: item.ring ? `inset 0 0 0 1px ${item.color}` : undefined,
-                }}
-              />
-              <span className="text-xs text-muted-foreground capitalize">{item.label}</span>
+          </>
+        }
+        actions={
+          <>
+            <div className="mr-2 hidden items-center gap-3 lg:flex">
+              {legend.map((item) => (
+                <div key={item.label} className="flex items-center gap-1.5">
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{
+                      background: item.ring ? "transparent" : item.color,
+                      boxShadow: item.ring ? `inset 0 0 0 1px ${item.color}` : undefined,
+                    }}
+                  />
+                  <span className="text-xs text-muted-foreground">{item.label}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        <div className="relative w-full max-w-md ml-auto shrink-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search nodes…"
-            className="pl-10 h-9"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-      </div>
+            <div className="relative w-56">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search memories…"
+                className="h-9 pl-10"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+          </>
+        }
+      />
 
-      <div className="flex flex-1 min-h-0 min-w-0 w-full relative">
-        <div className="flex-1 min-w-0 min-h-0 relative bg-background">
+      <div className="relative flex min-h-0 w-full min-w-0 flex-1">
+        <div className="relative min-h-0 min-w-0 flex-1 bg-background">
           {loading && graph.nodes.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground z-20 bg-background/80">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Loading memory graph…
+            <div className="absolute inset-0 z-20 flex items-center justify-center gap-2 bg-background/80 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading your memory graph…
             </div>
           )}
 
           {error && (
-            <div className="absolute inset-0 flex items-center justify-center p-6 z-20">
+            <div className="absolute inset-0 z-20 flex items-center justify-center p-6">
               <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
 
           {!loading && !error && graph.nodes.length === 0 && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-8 text-center z-20">
-              <Brain className="w-10 h-10 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground max-w-md">
-                No memories yet. Start recording and Chronicle will write episodes into the local graph
-                automatically.
-              </p>
-            </div>
+            <EmptyState
+              className="absolute inset-0 z-20"
+              icon={Brain}
+              title="No memories yet"
+              description="Start recording and Chronicle will build this graph from what it captures."
+            />
           )}
 
           {graph.nodes.length > 0 && (

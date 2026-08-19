@@ -8,7 +8,11 @@ export interface PermissionStatus {
 }
 
 export interface ElectronAPI {
-  openWindow: (kind: "setup" | "home" | "settings" | "onboarding" | "search" | "chat") => Promise<void>;
+  openWindow: (
+    kind: "setup" | "home" | "settings" | "onboarding" | "search" | "chat",
+    section?: string
+  ) => Promise<void>;
+  onNavigateSection: (callback: (section: string) => void) => () => void;
   closeWindow: () => Promise<void>;
   setWindowSize: (width: number, height: number) => Promise<void>;
   openExternal: (url: string) => Promise<void>;

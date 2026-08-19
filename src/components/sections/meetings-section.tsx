@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Mic, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { Textarea } from "@/components/ui/textarea";
+import { findMainSection } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import {
   api,
@@ -151,20 +156,17 @@ export function MeetingsSection() {
 
   return (
     <div className="flex flex-col h-full min-h-0 min-w-0">
-      <div className="page-header">
-        <h1 className="page-header-title">Meetings</h1>
-        <p className="page-header-desc">Transcripts from your microphone and meeting playback</p>
-      </div>
+      <PageHeader title="Recordings" description={findMainSection("meetings")?.description} />
       <div className="flex flex-1 min-h-0 min-w-0">
         <div className="w-72 border-r border-border overflow-y-auto scrollbar-hide shrink-0 bg-surface">
           <div className="px-4 py-3 border-b border-border">
-            <span className="text-xs font-medium text-muted-foreground">All meetings</span>
+            <span className="text-xs font-medium text-muted-foreground">All Recordings</span>
           </div>
           {loading ? (
             <div className="px-4 py-6 text-sm text-muted-foreground">Loading…</div>
           ) : meetings.length === 0 ? (
             <div className="px-4 py-6 text-sm text-muted-foreground">
-              No meetings yet. Turn on meeting notes to record one.
+              No recordings yet. Turn on meeting notes to make one.
             </div>
           ) : (
             meetings.map((m) => (
@@ -172,7 +174,7 @@ export function MeetingsSection() {
                 key={m.id}
                 onClick={() => setSelectedId(m.id)}
                 className={cn(
-                  "w-full px-4 py-3 border-b border-border text-left transition-colors duration-150",
+                  "w-full px-4 py-3 border-b border-border text-left transition-colors duration-fast",
                   selectedId === m.id
                     ? "bg-accent"
                     : "hover:bg-accent/60"
@@ -187,8 +189,8 @@ export function MeetingsSection() {
                 <div className="text-xs text-muted-foreground mt-1">
                   {format(new Date(m.started_at), "MMM d, HH:mm")} ·{" "}
                   {formatDuration(m)} · {m.chunk_count}{" "}
-                  {m.chunk_count === 1 ? "chunk" : "chunks"}
-                  {m.live ? " · recording" : ""}
+                  {m.chunk_count === 1 ? "segment" : "segments"}
+                  {m.live ? " · Recording" : ""}
                 </div>
               </button>
             ))
@@ -218,7 +220,7 @@ export function MeetingsSection() {
                   ) : (
                     <Sparkles className="w-3 h-3" />
                   )}
-                  {detail.summary ? "re-summarize" : "summarize"}
+                  {detail.summary ? "Re-summarize" : "Summarize"}
                 </Button>
               </div>
               <div
@@ -226,7 +228,7 @@ export function MeetingsSection() {
                 className="flex-1 overflow-y-auto scrollbar-minimal p-6 space-y-6"
               >
                 {(detail.summary || summarizeError) && (
-                  <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
+                  <Card variant="muted" className="space-y-3">
                     {summarizeError ? (
                       <p className="text-sm text-destructive">{summarizeError}</p>
                     ) : (
@@ -247,13 +249,13 @@ export function MeetingsSection() {
                         )}
                       </>
                     )}
-                  </div>
+                  </Card>
                 )}
                 {detail.transcript.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     {detail.live
-                      ? "Listening — transcript chunks appear every ~30s while speech is detected"
-                      : "No speech transcribed in this meeting"}
+                      ? "Listening — transcript segments appear every ~30s while speech is detected"
+                      : "No speech was transcribed in this recording"}
                   </p>
                 ) : (
                   detail.transcript.map((chunk) => (
@@ -269,20 +271,24 @@ export function MeetingsSection() {
                 )}
               </div>
               <div className="border-t border-border p-4">
-                <textarea
+                <Textarea
                   value={notes}
                   onChange={(e) => onNotesChange(e.target.value)}
-                  className="w-full h-24 rounded-md border border-border bg-input p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  placeholder="Add meeting notes…"
+                  className="h-24 resize-none"
+                  placeholder="Add your notes…"
                 />
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm px-8 text-center">
-              {selected === null
-                ? "Select a meeting to view its transcript and notes"
-                : "Loading meeting…"}
-            </div>
+            <EmptyState
+              icon={Mic}
+              title={selected === null ? "No recording selected" : "Loading…"}
+              description={
+                selected === null
+                  ? "Pick a recording on the left to read its transcript and notes."
+                  : undefined
+              }
+            />
           )}
         </div>
       </div>

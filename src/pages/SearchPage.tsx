@@ -14,8 +14,23 @@ function formatResultTime(timestamp: string): string {
   }
 }
 
+const RESULT_TYPE_LABELS: Record<string, string> = {
+  OCR: "Screen",
+  Audio: "Recording",
+  Accessibility: "Screen",
+  UI: "Screen",
+};
+
+/** Which home section a result belongs to, for click-through. */
+const RESULT_SECTIONS: Record<string, string> = {
+  OCR: "timeline",
+  Accessibility: "timeline",
+  UI: "timeline",
+  Audio: "meetings",
+};
+
 function resultType(item: SearchResultItem): string {
-  return item.type.toLowerCase();
+  return RESULT_TYPE_LABELS[item.type] ?? item.type;
 }
 
 export function SearchPage() {
@@ -56,16 +71,21 @@ export function SearchPage() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  const openResult = (item: SearchResultItem) => {
+    void electron?.openWindow("home", RESULT_SECTIONS[item.type] ?? "timeline");
+    electron?.closeWindow();
+  };
+
   return (
-    <div className="min-h-screen bg-transparent flex items-start justify-center pt-16 px-4">
-      <div className="w-full max-w-2xl rounded-xl border border-border bg-background shadow-2xl overflow-hidden">
+    <div className="flex min-h-screen items-start justify-center bg-transparent px-4 pt-16">
+      <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-popover shadow-2xl">
         <div className="flex items-center border-b border-border">
           <Search className="w-4 h-4 ml-4 text-muted-foreground shrink-0" />
           <Input
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search your timeline…"
+            placeholder="Search your history, recordings, and chats…"
             className="border-0 focus-visible:ring-0 h-12 rounded-none"
           />
           <Button
@@ -89,10 +109,11 @@ export function SearchPage() {
           {results.map((r, i) => (
             <button
               key={`${r.content.frame_id ?? r.content.audio_chunk_id ?? i}`}
-              className="w-full px-4 py-3 border-b border-border text-left hover:bg-accent transition-colors duration-150 flex justify-between items-center gap-4"
+              onClick={() => openResult(r)}
+              className="flex w-full items-center justify-between gap-4 border-b border-border px-4 py-3 text-left transition-colors duration-fast hover:bg-accent"
             >
               <div className="min-w-0">
-                <span className="text-xs font-medium text-muted-foreground mr-2 capitalize">
+                <span className="mr-2 text-xs font-medium text-muted-foreground">
                   {resultType(r)}
                 </span>
                 <span className="text-sm truncate block">
@@ -113,7 +134,7 @@ export function SearchPage() {
           ))}
           {!query && (
             <div className="p-6 text-sm text-muted-foreground">
-              Type to search screen history, audio, and chats
+              Type to search your history, recordings, and chats
             </div>
           )}
         </div>

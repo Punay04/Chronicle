@@ -1,6 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { findMainSection } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { api, loadFrameImageSrc, type FrameRow } from "@/lib/api/client";
 import { useRecordingStore } from "@/lib/stores/recording-store";
@@ -123,12 +127,10 @@ export function TimelineSection() {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-full min-h-0 min-w-0 w-full overflow-hidden">
-        <div className="page-header">
-          <h1 className="page-header-title">Timeline</h1>
-        </div>
-        <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-          Loading frames…
+      <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
+        <PageHeader title="History" description={findMainSection("timeline")?.description} />
+        <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+          Loading snapshots…
         </div>
       </div>
     );
@@ -136,19 +138,20 @@ export function TimelineSection() {
 
   if (frames.length === 0) {
     return (
-      <div className="flex flex-col h-full min-h-0 min-w-0 w-full overflow-hidden">
-        <div className="page-header">
-          <h1 className="page-header-title">Timeline</h1>
-          <p className="page-header-desc">Browse your screen history</p>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-muted-foreground text-sm">
-          <p>No frames captured yet. Screen recording will populate this view.</p>
-          {isGloballyPaused && (
-            <Button variant="outline" size="sm" onClick={() => void resumeAll()}>
-              Resume screen recording
-            </Button>
-          )}
-        </div>
+      <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
+        <PageHeader title="History" description={findMainSection("timeline")?.description} />
+        <EmptyState
+          icon={Clock}
+          title="No snapshots yet"
+          description="Once screen recording is running, everything Chronicle sees will appear here."
+          action={
+            isGloballyPaused ? (
+              <Button variant="outline" size="sm" onClick={() => void resumeAll()}>
+                Resume Screen Recording
+              </Button>
+            ) : null
+          }
+        />
       </div>
     );
   }
@@ -158,30 +161,32 @@ export function TimelineSection() {
 
   return (
     <div className="flex flex-col h-full min-h-0 min-w-0 w-full overflow-hidden">
-      <div className="page-header flex items-center justify-between gap-4">
-        <div>
-          <h1 className="page-header-title">Timeline</h1>
-          <p className="page-header-desc">
-            Browse your screen history · {frames.length} frames
+      <PageHeader
+        title="History"
+        description={
+          <>
+            {frames.length.toLocaleString()} snapshots
             {followLatestRef.current && atLatest && !isGloballyPaused ? " · Live" : ""}
-          </p>
-        </div>
-        {!atLatest && (
-          <Button variant="outline" size="sm" onClick={goToLatest}>
-            Jump to latest
-          </Button>
-        )}
-      </div>
+          </>
+        }
+        actions={
+          !atLatest ? (
+            <Button variant="outline" size="sm" onClick={goToLatest}>
+              Jump to Latest
+            </Button>
+          ) : null
+        }
+      />
 
       {isGloballyPaused && (
-        <div className="mx-6 mt-4 flex items-center justify-between gap-4 rounded-lg border border-border bg-surface px-4 py-3">
+        <Card variant="muted" className="mx-6 mt-4 flex items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
-            Screen recording is paused. Resume to capture new frames.
+            Screen recording is paused. Resume to capture new snapshots.
           </p>
           <Button variant="outline" size="sm" onClick={() => void resumeAll()} className="shrink-0">
-            Resume screen
+            Resume
           </Button>
-        </div>
+        </Card>
       )}
 
       <div className="flex-1 flex flex-col min-h-0 min-w-0 p-6 gap-4 overflow-hidden">
@@ -189,14 +194,14 @@ export function TimelineSection() {
           {imageSrc && !imageError ? (
             <img
               src={imageSrc}
-              alt={`frame ${frame.id}`}
+              alt={`Screen snapshot ${frame.id}`}
               className="max-w-full max-h-full object-contain"
               onError={() => setImageError(true)}
             />
           ) : (
             <div className="text-center px-6">
               <p className="text-sm text-muted-foreground">
-                Frame {frame.id} — {formatFrameTime(frame.timestamp)}
+                Snapshot {frame.id} — {formatFrameTime(frame.timestamp)}
               </p>
               {imageError && (
                 <p className="text-xs text-muted-foreground mt-2">
@@ -222,7 +227,7 @@ export function TimelineSection() {
             </Button>
             <div className="flex-1 h-1 bg-border relative rounded-full overflow-hidden">
               <div
-                className="absolute top-0 left-0 h-full bg-foreground transition-all duration-150 rounded-full"
+                className="absolute top-0 left-0 h-full bg-foreground transition-all duration-fast rounded-full"
                 style={{ width: `${((current + 1) / frames.length) * 100}%` }}
               />
             </div>
@@ -243,7 +248,7 @@ export function TimelineSection() {
               data-active={i === current ? "true" : "false"}
               onClick={() => goToFrame(i)}
               className={cn(
-                "flex-shrink-0 w-20 h-14 rounded-md border text-[10px] transition-colors duration-150",
+                "flex-shrink-0 w-20 h-14 rounded-md border text-[10px] transition-colors duration-fast",
                 i === current
                   ? "border-foreground bg-accent text-foreground"
                   : "border-border text-muted-foreground hover:border-foreground/40 hover:bg-accent/50",

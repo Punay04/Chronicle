@@ -56,7 +56,7 @@ export function RecordingStatus({ floatingOverMedia }: RecordingStatusProps) {
       <PopoverTrigger asChild>
         <button
           className={cn(
-            "flex items-center gap-2 h-8 px-3 rounded-md text-xs font-medium transition-colors duration-150 border",
+            "flex items-center gap-2 h-8 px-3 rounded-md text-xs font-medium transition-colors duration-fast border",
             floatingOverMedia
               ? "border-border/60 bg-background/80 backdrop-blur-sm"
               : "border-border bg-background hover:bg-accent"
@@ -90,7 +90,7 @@ export function RecordingStatus({ floatingOverMedia }: RecordingStatusProps) {
                 key={device.fullName}
                 className={cn(
                   "flex items-center justify-between px-4 py-2.5 text-sm",
-                  !isMonitor && "hover:bg-accent transition-colors duration-150"
+                  !isMonitor && "hover:bg-accent transition-colors duration-fast"
                 )}
               >
                 <div className="flex items-center gap-2.5">
@@ -126,7 +126,7 @@ export function RecordingStatus({ floatingOverMedia }: RecordingStatusProps) {
             onClick={isScreenPaused ? resumeAll : pauseAll}
           >
             {isScreenPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
-            {isScreenPaused ? "Resume all" : "Pause all"}
+            {isScreenPaused ? "Resume All" : "Pause All"}
           </Button>
           <Button
             variant={meetingActive ? "default" : "outline"}
@@ -135,7 +135,7 @@ export function RecordingStatus({ floatingOverMedia }: RecordingStatusProps) {
             onClick={toggleMeeting}
           >
             <Phone className="w-3.5 h-3.5" />
-            {meetingActive ? "Stop meeting notes" : "Start meeting notes"}
+            {meetingActive ? "Stop Recording" : "Start Recording"}
           </Button>
         </div>
       </PopoverContent>

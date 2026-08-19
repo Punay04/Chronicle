@@ -246,6 +246,16 @@ export function getApiUrl(): string {
   return API_URL;
 }
 
+/** True when the capture backend simply is not listening yet. */
+export function isOfflineError(error: unknown): boolean {
+  const cause = (error as { cause?: { code?: string } } | undefined)?.cause;
+  return (
+    cause?.code === "ECONNREFUSED" ||
+    cause?.code === "ECONNRESET" ||
+    cause?.code === "EHOSTUNREACH"
+  );
+}
+
 export async function proxyApi(
   method: string,
   path: string,

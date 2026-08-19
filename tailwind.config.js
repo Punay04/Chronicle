@@ -80,12 +80,6 @@ export default {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
         },
-        text: {
-          primary: "hsl(var(--text-primary))",
-          secondary: "hsl(var(--text-secondary))",
-          tertiary: "hsl(var(--text-tertiary))",
-          disabled: "hsl(var(--text-disabled))",
-        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -101,6 +95,13 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      // Motion scale. fast: hover and color changes. base: transforms and
+      // panel state. slow: window-scale transitions (sidebar width, crossfades).
+      transitionDuration: {
+        fast: "120ms",
+        base: "180ms",
+        slow: "280ms",
       },
       keyframes: {
         blink: {

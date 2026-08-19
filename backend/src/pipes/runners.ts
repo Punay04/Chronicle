@@ -86,7 +86,7 @@ async function runDailySummary(): Promise<string> {
   const context = gatherContextSnippets({ startTime: start, endTime: end });
 
   if (context.trim().length < 20 && activity.includes("(no app data)")) {
-    throw new Error("not enough captured data for a daily summary yet");
+    throw new Error("Not enough captured data for a daily summary yet");
   }
 
   const result = await generateDailySummary({ activity, context });
@@ -115,7 +115,7 @@ async function runMeetingRecap(): Promise<string> {
   if (meetings.length === 0) {
     const pending = listMeetings().filter((m) => m.chunk_count > 0).length;
     if (pending === 0) {
-      return "no meetings with transcripts found";
+      return "No recordings with transcripts found";
     }
     return "all meetings with transcripts are already summarized";
   }
@@ -149,7 +149,7 @@ async function runMeetingRecap(): Promise<string> {
   }
 
   if (lines.length === 0) {
-    return "no unsummarized meetings with transcript text found";
+    return "No unsummarized recordings with transcript text found";
   }
 
   return lines.join("\n\n");
@@ -188,12 +188,12 @@ async function runActionItems(): Promise<string> {
   const context = gatherContextSnippets({ startTime: start, endTime: end, limit: 50 });
 
   if (context.trim().length < 30) {
-    throw new Error("not enough recent conversation or screen text to extract action items");
+    throw new Error("Not enough recent conversation or screen text to extract action items");
   }
 
   const result = await extractActionItems(context);
   if (result.action_items.length === 0) {
-    return result.summary || "no action items found in recent context";
+    return result.summary || "No action items found in recent context";
   }
 
   await ingestUserMemory({

@@ -4,7 +4,13 @@ import type { ModelProvider, RuntimeStatus } from "./runtime-types.js";
 export type WindowKind = "setup" | "home" | "settings" | "onboarding" | "search" | "chat";
 
 const electronAPI = {
-  openWindow: (kind: WindowKind) => ipcRenderer.invoke("window:open", kind),
+  openWindow: (kind: WindowKind, section?: string) =>
+    ipcRenderer.invoke("window:open", kind, section),
+  onNavigateSection: (callback: (section: string) => void) => {
+    const listener = (_event: unknown, section: string) => callback(section);
+    ipcRenderer.on("navigate:section", listener);
+    return () => ipcRenderer.removeListener("navigate:section", listener);
+  },
   closeWindow: () => ipcRenderer.invoke("window:close"),
   setWindowSize: (width: number, height: number) =>
     ipcRenderer.invoke("window:set-size", width, height),
