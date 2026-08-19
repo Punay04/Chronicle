@@ -104,12 +104,23 @@ function graphEnv({ store, cache, tokenFile }) {
   };
 }
 
+function dumpGraphNodeLog() {
+  const logPath = path.join(DATA_ROOT, "graph-node.log");
+  if (!existsSync(logPath)) {
+    console.error(`[hydradb] no graph-node.log at ${logPath}`);
+    return;
+  }
+  const tail = readFileSync(logPath, "utf8").trim().split(/\r?\n/).slice(-20).join("\n");
+  if (tail) console.error(`[hydradb] graph-node.log:\n${tail}`);
+}
+
 async function waitForReady(attempts = 90) {
   const url = `http://127.0.0.1:${ADMIN_PORT}/readyz`;
   for (let i = 0; i < attempts; i += 1) {
     if (await reachable(url)) return;
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
+  dumpGraphNodeLog();
   throw new Error(`HydraDB did not become ready at ${url}`);
 }
 
@@ -189,7 +200,9 @@ async function startWsl(dirs) {
     `export GRAPH_AUTH_TOKEN_FILE='${tokenFile}'`,
     "export GRAPH_ALLOW_PLAINTEXT=true",
     "export RUST_MIN_STACK=33554432",
-    `nohup '${bin}' > '${logFile}' 2>&1 & echo $!`,
+    // nohup ... & is killed when this `wsl.exe` invocation exits. setsid -f
+    // forks into a new session so graph-node survives in the WSL VM.
+    `setsid -f '${bin}' </dev/null > '${logFile}' 2>&1`,
   ].join("; ");
 
   console.log(`[hydradb] starting graph-node in WSL: ${bin}`);
