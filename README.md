@@ -2,6 +2,76 @@
 
 Chronicle is a local-first AI desktop workspace. It captures screen activity and meetings on your machine, stores them in SQLite, and writes a **property graph of episodes and facts into a local HydraDB graph-node**. Chat, search, and the Brain view retrieve over that graph with OpenCypher — including current vs superseded facts and explicit abstention when nothing matches.
 
+## Quick start
+
+Need **Node.js 24**, **npm 11**, and a **Gemini API key**.
+
+```bash
+git clone https://github.com/Punay04/Chronicle.git
+cd Chronicle
+cp .env.example .env
+# set GEMINI_API_KEY in .env
+npm install
+```
+
+Then start the app the fastest way for your OS. `npm run dev` launches HydraDB, the capture API on `http://127.0.0.1:3030`, and Vite + Electron (`http://localhost:1420`).
+
+### Windows
+
+Fastest native path — compile `graph-node` once inside WSL, then run:
+
+```bash
+wsl --install -d Ubuntu    # once; reboot if Windows asks
+npm run memory:bootstrap   # once (several minutes)
+npm run dev
+```
+
+Skip the compile if Docker Desktop is already running:
+
+```bash
+# Git Bash
+HYDRADB_USE_DOCKER=1 npm run dev
+
+# PowerShell
+$env:HYDRADB_USE_DOCKER="1"; npm run dev
+```
+
+### Linux
+
+On Ubuntu/Debian, compile once then run:
+
+```bash
+npm run memory:bootstrap   # once (several minutes; uses apt)
+npm run dev
+```
+
+Skip the compile if Docker is already running:
+
+```bash
+HYDRADB_USE_DOCKER=1 npm run dev
+```
+
+### macOS
+
+Docker is the fastest path (`npm run memory:bootstrap` is not wired up on macOS):
+
+```bash
+# start Docker Desktop first
+HYDRADB_USE_DOCKER=1 npm run dev
+```
+
+To run without Docker, compile HydraDB yourself and put the binary on the lookup path:
+
+```bash
+brew install just cmake pkg-config llvm suite-sparse
+brew install cleishm/neo4j/libcypher-parser
+git clone https://github.com/hydra-db/hydradb ~/src/hydradb
+cd ~/src/hydradb && cargo build --locked --features server-runtime --bin graph-node --release
+mkdir -p ~/.chronicle/hydradb/bin
+cp ~/src/hydradb/target/release/graph-node ~/.chronicle/hydradb/bin/graph-node
+cd /path/to/Chronicle && npm run dev
+```
+
 ## Why HydraDB
 
 Vector search cannot tell you whether a fact is still true, what it replaced, or that the answer is not in memory. Chronicle uses the [HydraDB](https://github.com/hydra-db/hydradb) open-source graph database as the memory substrate:
@@ -39,47 +109,18 @@ HydraDB is required for memory. Without the local graph-node, capture still work
 | HydraDB HTTP / Bolt / admin | `8443` / `7687` / `9090` |
 | Chat, STT, summaries | Retrieved graph snippets are sent to Gemini when an API key is set |
 
-## Requirements
-
-- Node.js 24 and npm 11
-- A Gemini API key for chat, transcription, and summaries
-- A native HydraDB `graph-node` (no Docker by default)
-  - **Windows:** WSL (Ubuntu) to compile once with `npm run memory:bootstrap`
-  - **Linux:** the same bootstrap, or a `graph-node` on `PATH`
-  - Optional: `HYDRADB_USE_DOCKER=1` if you already have Docker and prefer the published image
-
-## Setup
+## HydraDB only
 
 ```bash
-git clone <this-repo>
-cd Chronicle
-cp .env.example .env
-# put GEMINI_API_KEY in .env
-npm install
-npm run memory:bootstrap   # first time only — compiles graph-node (WSL on Windows)
-npm run dev
-```
-
-`npm run dev` starts:
-
-1. Local HydraDB `graph-node` (native binary, or WSL on Windows)
-2. The capture backend on port 3030
-3. Vite + Electron
-
-First compile can take several minutes. Data is kept under `~/.chronicle/hydradb/`.
-
-### HydraDB only
-
-```bash
-npm run memory:bootstrap   # once
+npm run memory:bootstrap   # once (Windows / Linux)
 npm run memory:start
 ```
 
 Lookup order: `HYDRADB_BIN` or `~/.chronicle/hydradb/bin/graph-node`, then a WSL binary (`HYDRADB_WSL_BIN` or `~/.chronicle/hydradb/wsl-bin`). Docker is opt-in: `HYDRADB_USE_DOCKER=1 npm run memory:start`.
 
-Health check: `GET http://127.0.0.1:9090/readyz`
+Health check: `GET http://127.0.0.1:9090/readyz`. Data lives under `~/.chronicle/hydradb/`.
 
-### Ingest a chat session (graph memory)
+## Ingest a chat session (graph memory)
 
 ```bash
 curl -s http://127.0.0.1:3030/memory/sessions \
@@ -106,7 +147,7 @@ Renderer (React) --IPC--> Electron main
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | HydraDB + backend + Vite/Electron |
-| `npm run memory:bootstrap` | Compile native `graph-node` (WSL on Windows) |
+| `npm run memory:bootstrap` | Compile native `graph-node` (WSL on Windows, apt on Linux) |
 | `npm run memory:start` | Start the local HydraDB graph-node |
 | `npm run typecheck` | Typecheck the desktop app |
 | `npm run test:runtime` | Runtime policy tests |
