@@ -8,6 +8,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { toWslPath, wslAvailable } from "./wsl-path.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HTTP_PORT = Number(process.env.HYDRADB_HTTP_PORT ?? 8443);
@@ -49,7 +50,7 @@ function lookupOnPath(command) {
     const output = execFileSync(
       process.platform === "win32" ? "where" : "which",
       [command],
-      { encoding: "utf8" }
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }
     );
     return output.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? null;
   } catch {
@@ -58,13 +59,7 @@ function lookupOnPath(command) {
 }
 
 function hasWsl() {
-  if (process.platform !== "win32") return false;
-  try {
-    execFileSync("wsl", ["-e", "true"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
+  return process.platform === "win32" && wslAvailable();
 }
 
 async function reachable(url, timeoutMs = 1500) {
@@ -150,10 +145,6 @@ async function startHostBinary(bin, dirs) {
   console.log(`[hydradb] starting native graph-node: ${bin}`);
   spawnDetached(bin, [], graphEnv(dirs));
   await waitForReady();
-}
-
-async function toWslPath(winPath) {
-  return (await run("wsl", ["wslpath", "-a", winPath])).trim();
 }
 
 function readWslBinMarker() {

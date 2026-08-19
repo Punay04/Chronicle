@@ -35,7 +35,7 @@ export function rowToMemoryNode(row: Record<string, unknown>): MemoryNode | null
   return {
     id,
     type,
-    title: asString(source.title) ?? content.slice(0, 60) || null,
+    title: asString(source.title) ?? (content.slice(0, 60) || null),
     content,
     metadata: source,
     source_type: (asString(source.source_type) as MemorySourceType | null) ?? null,

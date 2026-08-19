@@ -1,8 +1,9 @@
-import { execFileSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { toWslPath, wslAvailable } from "./wsl-path.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const script = path.join(root, "scripts", "hydradb-bootstrap-wsl.sh");
@@ -24,24 +25,16 @@ function runInherit(command, args) {
   });
 }
 
-function wslPath(winPath) {
-  return execFileSync("wsl", ["wslpath", "-a", winPath], {
-    encoding: "utf8",
-  }).trim();
-}
-
 async function bootstrapWindows() {
-  try {
-    execFileSync("wsl", ["-e", "true"]);
-  } catch {
+  if (!wslAvailable()) {
     throw new Error(
       "WSL is required to compile HydraDB without Docker on Windows. Install Ubuntu from Microsoft Store, then retry."
     );
   }
 
   mkdirSync(path.dirname(marker), { recursive: true });
-  const wslScript = wslPath(script);
-  const wslMarker = wslPath(marker);
+  const wslScript = toWslPath(script);
+  const wslMarker = toWslPath(marker);
   const remote = [
     `export HYDRADB_MARKER='${wslMarker}'`,
     `sed 's/\\r$//' '${wslScript}' | bash`,
