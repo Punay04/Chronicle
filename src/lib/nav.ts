@@ -150,7 +150,7 @@ export const SETTINGS_NAV: NavGroup[] = [
       {
         id: "ai",
         label: "AI",
-        description: "Model provider and API keys",
+        description: "Gemini model and API key",
         icon: Sparkles,
       },
       {

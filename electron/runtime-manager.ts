@@ -132,17 +132,8 @@ export class RuntimeManager {
   }
 
   getProviderInfo(): { provider: ModelProvider | null; configured: boolean } {
-    if (
-      process.env.GEMINI_API_KEY ||
-      process.env.OPENAI_API_KEY ||
-      process.env.ANTHROPIC_API_KEY
-    ) {
-      const provider = process.env.GEMINI_API_KEY
-        ? "gemini"
-        : process.env.OPENAI_API_KEY
-          ? "openai"
-          : "anthropic";
-      return { provider, configured: true };
+    if (process.env.GEMINI_API_KEY) {
+      return { provider: "gemini", configured: true };
     }
     const providerPath = this.paths().provider;
     if (!existsSync(providerPath)) return { provider: null, configured: false };
@@ -155,8 +146,10 @@ export class RuntimeManager {
       const payload = stored.encrypted
         ? safeStorage.decryptString(buffer)
         : buffer.toString("utf8");
-      const value = JSON.parse(payload) as { provider: ModelProvider };
-      return { provider: value.provider, configured: true };
+      const value = JSON.parse(payload) as { provider?: string };
+      return value.provider === "gemini"
+        ? { provider: "gemini", configured: true }
+        : { provider: null, configured: false };
     } catch {
       return { provider: null, configured: false };
     }
@@ -178,11 +171,7 @@ export class RuntimeManager {
   }
 
   private getProviderEnv(): NodeJS.ProcessEnv {
-    if (
-      process.env.GEMINI_API_KEY ||
-      process.env.OPENAI_API_KEY ||
-      process.env.ANTHROPIC_API_KEY
-    ) {
+    if (process.env.GEMINI_API_KEY) {
       return {};
     }
     const providerPath = this.paths().provider;
@@ -197,15 +186,11 @@ export class RuntimeManager {
         ? safeStorage.decryptString(buffer)
         : buffer.toString("utf8");
       const value = JSON.parse(payload) as {
-        provider: ModelProvider;
+        provider?: string;
         apiKey: string;
       };
-      const variable = {
-        gemini: "GEMINI_API_KEY",
-        openai: "OPENAI_API_KEY",
-        anthropic: "ANTHROPIC_API_KEY",
-      }[value.provider];
-      return { [variable]: value.apiKey };
+      if (value.provider !== "gemini" || !value.apiKey?.trim()) return {};
+      return { GEMINI_API_KEY: value.apiKey };
     } catch (error) {
       this.writeLog(`provider credentials could not be read: ${String(error)}`);
       return {};
@@ -246,7 +231,7 @@ export class RuntimeManager {
           memoryReady: true,
         });
         await startBackend(
-          this.hydraBackendEnv(),
+          { ...this.hydraBackendEnv(), ...this.getProviderEnv() },
           (message) => this.writeLog(`backend: ${message}`),
         );
         this.update("ready", "Local runtime ready", 100, {

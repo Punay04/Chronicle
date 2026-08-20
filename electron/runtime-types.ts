@@ -32,7 +32,7 @@ export interface RuntimeStatus {
   updatedAt: string;
 }
 
-export type ModelProvider = "gemini" | "openai" | "anthropic";
+export type ModelProvider = "gemini";
 
 export const initialRuntimeStatus = (): RuntimeStatus => ({
   phase: "checking",

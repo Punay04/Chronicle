@@ -10,13 +10,6 @@ import { Kbd } from "@/components/ui/kbd";
 import { PageHeader } from "@/components/ui/page-header";
 import { SettingRow } from "@/components/ui/setting-row";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { formatShortcut } from "@/lib/utils";
 import {
   SETTINGS_NAV,
@@ -31,15 +24,8 @@ import { electron } from "@/lib/electron";
 import {
   PHASE_LABELS,
   initialRuntimeStatus,
-  type ModelProvider,
   type RuntimeStatus,
 } from "@/lib/runtime";
-
-const PROVIDERS: { value: ModelProvider; label: string }[] = [
-  { value: "gemini", label: "Gemini" },
-  { value: "openai", label: "OpenAI" },
-  { value: "anthropic", label: "Anthropic" },
-];
 
 function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
   return <Badge variant={ok ? "accent" : "default"}>{label}</Badge>;
@@ -182,7 +168,6 @@ function RecordingSection() {
 function AiSection() {
   const [runtime, setRuntime] = useState<RuntimeStatus>(initialRuntimeStatus());
   const [config, setConfig] = useState<AppConfig | null>(null);
-  const [provider, setProvider] = useState<ModelProvider>("gemini");
   const [providerConfigured, setProviderConfigured] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [saving, setSaving] = useState(false);
@@ -195,7 +180,6 @@ function AiSection() {
   useEffect(() => {
     void api.config().then(setConfig).catch(() => setConfig(null));
     void electron?.runtime.getProviderInfo().then((info) => {
-      if (info.provider) setProvider(info.provider);
       setProviderConfigured(info.configured);
     });
   }, []);
@@ -204,15 +188,14 @@ function AiSection() {
     if (!apiKey.trim()) return;
     setSaving(true);
     try {
-      await electron?.runtime.configureProvider(provider, apiKey);
+      await electron?.runtime.configureProvider("gemini", apiKey);
       setApiKey("");
       setProviderConfigured(true);
+      await electron?.runtime.retry();
     } finally {
       setSaving(false);
     }
   };
-
-  const providerLabel = PROVIDERS.find((p) => p.value === provider)?.label ?? provider;
 
   return (
     <>
@@ -238,33 +221,21 @@ function AiSection() {
         label="API Key"
         description={
           providerConfigured
-            ? `${providerLabel} key saved — enter a new one to replace it`
-            : "Required for AI chat and meeting summaries"
+            ? "Gemini key saved — enter a new one to replace it"
+            : "Gemini is used for chat, voice, transcription, and summaries"
         }
       >
         <div className="flex w-48 flex-col items-stretch gap-2">
-          <Select value={provider} onValueChange={(v) => setProvider(v as ModelProvider)}>
-            <SelectTrigger className="h-8 text-xs" aria-label="Model provider">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PROVIDERS.map((p) => (
-                <SelectItem key={p.value} value={p.value}>
-                  {p.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Input
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Paste API key"
+            placeholder="Gemini API key"
             autoComplete="off"
             className="h-8 text-xs"
           />
           <Button size="sm" disabled={!apiKey.trim() || saving} onClick={() => void saveProvider()}>
-            {saving ? "Saving…" : "Save Key"}
+            {saving ? "Restarting…" : "Save Key"}
           </Button>
         </div>
       </SettingRow>

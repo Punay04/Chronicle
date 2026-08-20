@@ -2,31 +2,16 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { electron } from "@/lib/electron";
 import {
   PHASE_LABELS,
   initialRuntimeStatus,
-  type ModelProvider,
   type RuntimeStatus,
 } from "@/lib/runtime";
-
-const PROVIDERS: { value: ModelProvider; label: string }[] = [
-  { value: "gemini", label: "Gemini" },
-  { value: "openai", label: "OpenAI" },
-  { value: "anthropic", label: "Anthropic" },
-];
 
 export function SetupPage() {
   const [status, setStatus] = useState<RuntimeStatus>(initialRuntimeStatus());
   const [retrying, setRetrying] = useState(false);
-  const [provider, setProvider] = useState<ModelProvider>("gemini");
   const [apiKey, setApiKey] = useState("");
 
   useEffect(() => {
@@ -47,7 +32,7 @@ export function SetupPage() {
     if (!apiKey.trim()) return;
     setRetrying(true);
     try {
-      await electron?.runtime.configureProvider(provider, apiKey);
+      await electron?.runtime.configureProvider("gemini", apiKey);
       setApiKey("");
       await electron?.runtime.retry();
     } finally {
@@ -95,27 +80,13 @@ export function SetupPage() {
 
         {needsKey && (
           <div className="flex flex-col gap-2">
-            <div className="grid grid-cols-[140px_1fr] gap-2">
-              <Select value={provider} onValueChange={(v) => setProvider(v as ModelProvider)}>
-                <SelectTrigger aria-label="Model provider">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PROVIDERS.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>
-                      {p.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                type="password"
-                value={apiKey}
-                onChange={(event) => setApiKey(event.target.value)}
-                placeholder="Provider API key"
-                autoComplete="off"
-              />
-            </div>
+            <Input
+              type="password"
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
+              placeholder="Gemini API key"
+              autoComplete="off"
+            />
             <p className="text-xs text-muted-foreground">
               Protected by the OS credential store when available, and shared only with local
               services.

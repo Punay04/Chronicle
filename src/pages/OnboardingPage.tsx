@@ -36,7 +36,7 @@ function OnboardingShell({
   );
 }
 
-function LoginSlide({ onNext }: { onNext: () => void }) {
+function WelcomeSlide({ onNext }: { onNext: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-8 gap-6">
       <div className="text-center">
@@ -46,14 +46,11 @@ function LoginSlide({ onNext }: { onNext: () => void }) {
         </p>
       </div>
       <Button onClick={onNext} className="w-full max-w-xs">
-        Sign in
+        Get Started
       </Button>
-      <button
-        onClick={onNext}
-        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        Continue without account
-      </button>
+      <p className="max-w-xs text-center text-xs text-muted-foreground">
+        No account required. Your captured data stays on this device.
+      </p>
     </div>
   );
 }
@@ -421,7 +418,7 @@ export function OnboardingPage() {
         visible ? "opacity-100" : "opacity-0"
       )}
     >
-      {currentStep === "login" && <LoginSlide onNext={handleNext} />}
+      {currentStep === "login" && <WelcomeSlide onNext={handleNext} />}
       {currentStep === "permissions" && <PermissionsSlide onNext={handleNext} />}
       {currentStep === "engine" && <EngineSlide onNext={handleNext} />}
       {currentStep === "connect-apps" && <ConnectAppsSlide onNext={handleNext} />}
