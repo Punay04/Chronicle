@@ -3,7 +3,12 @@ import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import fs from "fs";
 import path from "path";
 import { promisify } from "util";
-import { AUDIO_CHUNK_SEC, AUDIO_DIR, AUDIO_ENABLED } from "../config.js";
+import {
+  AUDIO_CHUNK_SEC,
+  AUDIO_DIR,
+  AUDIO_ENABLED,
+  AUDIO_INPUT_DEVICE,
+} from "../config.js";
 import { insertAudioTranscription } from "../db/index.js";
 import {
   closeMeeting,
@@ -390,6 +395,58 @@ Get-CimInstance Win32_SoundDevice | Select-Object Name, Status | ConvertTo-Json 
   ];
 }
 
+/**
+ * List macOS avfoundation audio inputs as `[index, name]` pairs.
+ *
+ * ffmpeg prints these to stderr and then exits non-zero ("Input/output error"),
+ * which is expected — the listing is the point, not the exit code.
+ */
+async function listAvfoundationAudioDevices(): Promise<
+  Array<{ index: number; name: string }>
+> {
+  return new Promise((resolve) => {
+    const proc = spawn(
+      FFMPEG,
+      ["-hide_banner", "-f", "avfoundation", "-list_devices", "true", "-i", ""],
+      { stdio: ["ignore", "pipe", "pipe"] }
+    );
+
+    let output = "";
+    proc.stderr?.on("data", (chunk: Buffer) => {
+      output += chunk.toString();
+    });
+    proc.on("close", () => {
+      const devices: Array<{ index: number; name: string }> = [];
+      let inAudio = false;
+      for (const line of output.split("\n")) {
+        if (line.includes("AVFoundation audio devices")) {
+          inAudio = true;
+          continue;
+        }
+        if (line.includes("AVFoundation video devices")) {
+          inAudio = false;
+          continue;
+        }
+        if (!inAudio) continue;
+        const match = line.match(/\[(\d+)\]\s+(.+?)\s*$/);
+        if (match) devices.push({ index: Number(match[1]), name: match[2] });
+      }
+      resolve(devices);
+    });
+    proc.on("error", () => resolve([]));
+  });
+}
+
+/**
+ * Virtual/loopback inputs that register as microphones but carry no room audio.
+ *
+ * These sit at avfoundation index 0 whenever their app is installed, and the
+ * device order is alphabetical — so a hardcoded `:0` silently recorded digital
+ * silence while the real microphone sat at a higher index.
+ */
+const VIRTUAL_INPUT_PATTERN =
+  /camo|teams|zoom|obs|blackhole|soundflower|loopback|aggregate|virtual|vb-cable|krisp|discord/i;
+
 async function listDshowAudioDevices(): Promise<string[]> {
   return new Promise((resolve) => {
     const proc = spawn(FFMPEG, ["-list_devices", "true", "-f", "dshow", "-i", "dummy"], {
@@ -428,7 +485,23 @@ async function resolveInputDevice(): Promise<string | null> {
     );
     return mic ?? devices[0] ?? null;
   }
-  if (process.platform === "darwin") return ":0";
+  if (process.platform === "darwin") {
+    if (AUDIO_INPUT_DEVICE) return AUDIO_INPUT_DEVICE;
+
+    const devices = await listAvfoundationAudioDevices();
+    if (devices.length === 0) return ":0";
+
+    const real = devices.filter((d) => !VIRTUAL_INPUT_PATTERN.test(d.name));
+    const builtIn = real.find((d) => /macbook|built-?in|internal/i.test(d.name));
+    const chosen = builtIn ?? real[0] ?? devices[0];
+
+    if (chosen.index !== 0) {
+      console.log(
+        `[audio] using microphone [${chosen.index}] ${chosen.name} (skipped "${devices[0].name}")`
+      );
+    }
+    return `:${chosen.index}`;
+  }
   return "default";
 }
 

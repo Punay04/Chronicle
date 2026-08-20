@@ -43,6 +43,13 @@ export const OCR_ENGINE = (process.env.CHRONICLE_OCR_ENGINE ?? "native") as
   | "tesseract"
   | "off";
 export const AUDIO_ENABLED = process.env.CHRONICLE_AUDIO !== "0";
+
+/**
+ * Explicit microphone override, e.g. ":1" on macOS or a dshow device name on
+ * Windows. Empty means auto-detect.
+ */
+export const AUDIO_INPUT_DEVICE =
+  process.env.CHRONICLE_AUDIO_INPUT_DEVICE ?? "";
 export const AUTO_START_CAPTURE = process.env.CHRONICLE_AUTO_START !== "0";
 
 /** Audio chunk length in seconds before transcription */
