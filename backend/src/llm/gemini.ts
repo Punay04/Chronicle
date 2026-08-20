@@ -1,7 +1,88 @@
 import fs from "fs";
-import { GEMINI_API_KEY, GEMINI_MODEL } from "../config.js";
+import {
+  GEMINI_API_KEY,
+  GEMINI_FALLBACK_MODELS,
+  GEMINI_MODEL,
+  GEMINI_STT_MODEL,
+} from "../config.js";
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
+
+/** Statuses worth retrying: overloaded (503), rate limited (429), transient 5xx. */
+function isTransient(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+const RETRIES_PER_MODEL = 3;
+const BASE_BACKOFF_MS = 700;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * POST to `:generateContent`, retrying transient failures and then falling
+ * through to backup models.
+ *
+ * Google reports free-tier saturation as a 503 "high demand" that is explicitly
+ * temporary, but which model is saturated rotates between requests. Previously
+ * a single 503 threw straight out of `transcribeAudio`, and the caller dropped
+ * that audio chunk permanently — a few seconds of a meeting lost to a blip.
+ * Retry the same model with exponential backoff first, then try the fallbacks,
+ * since they saturate independently.
+ */
+async function generateContent(
+  model: string,
+  body: unknown
+): Promise<GeminiResponse> {
+  const payload = JSON.stringify(body);
+  const candidates = [model, ...GEMINI_FALLBACK_MODELS.filter((m) => m !== model)];
+
+  let lastError = "";
+
+  for (const candidate of candidates) {
+    for (let attempt = 0; attempt < RETRIES_PER_MODEL; attempt += 1) {
+      let res: Response;
+      try {
+        res = await fetch(
+          `${GEMINI_API_BASE}/models/${candidate}:generateContent`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-goog-api-key": GEMINI_API_KEY,
+            },
+            body: payload,
+          }
+        );
+      } catch (err) {
+        // Network-level failure (offline, DNS, socket reset) — same treatment.
+        lastError = err instanceof Error ? err.message : "network error";
+        await sleep(BASE_BACKOFF_MS * 2 ** attempt);
+        continue;
+      }
+
+      const data = (await res.json()) as GeminiResponse;
+      if (res.ok) return data;
+
+      lastError = data.error?.message ?? `Gemini request failed (${res.status})`;
+
+      // A permanent error (400 bad request, 404 retired model, 403 bad key)
+      // will not improve by waiting — move to the next model immediately.
+      if (!isTransient(res.status)) break;
+
+      if (attempt < RETRIES_PER_MODEL - 1) {
+        await sleep(BASE_BACKOFF_MS * 2 ** attempt);
+      }
+    }
+
+    if (candidate !== candidates[candidates.length - 1]) {
+      console.warn(`[gemini] ${candidate} unavailable (${lastError}); trying fallback`);
+    }
+  }
+
+  throw new Error(lastError || "Gemini request failed");
+}
 
 export interface ChatTurn {
   role: "user" | "assistant";
@@ -162,25 +243,7 @@ async function callGemini(
     body.tools = [{ functionDeclarations: tools }];
   }
 
-  const res = await fetch(
-    `${GEMINI_API_BASE}/models/${GEMINI_MODEL}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY,
-      },
-      body: JSON.stringify(body),
-    }
-  );
-
-  const data = (await res.json()) as GeminiResponse;
-
-  if (!res.ok) {
-    const message =
-      data.error?.message ?? `Gemini API request failed (${res.status})`;
-    throw new Error(message);
-  }
+  const data = await generateContent(GEMINI_MODEL, body);
 
   const content = data.candidates?.[0]?.content;
   if (!content?.parts) {
@@ -280,25 +343,10 @@ export async function summarizeMeeting(transcript: string): Promise<MeetingSumma
     transcript.slice(0, 30_000),
   ].join("\n");
 
-  const res = await fetch(
-    `${GEMINI_API_BASE}/models/${GEMINI_MODEL}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY,
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" },
-      }),
-    }
-  );
-
-  const data = (await res.json()) as GeminiResponse;
-  if (!res.ok) {
-    throw new Error(data.error?.message ?? `Gemini summarize failed (${res.status})`);
-  }
+  const data = await generateContent(GEMINI_MODEL, {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: "application/json" },
+  });
 
   const raw =
     data.candidates?.[0]?.content?.parts
@@ -331,47 +379,30 @@ export async function transcribeAudio(filePath: string): Promise<string> {
   const base64 = audioBytes.toString("base64");
   const ext = filePath.toLowerCase().endsWith(".mp3") ? "audio/mp3" : "audio/wav";
 
-  const res = await fetch(
-    `${GEMINI_API_BASE}/models/${GEMINI_MODEL}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY,
-      },
-      body: JSON.stringify({
-        contents: [
+  const data = await generateContent(GEMINI_STT_MODEL, {
+    contents: [
+      {
+        parts: [
           {
-            parts: [
-              {
-                text: [
-                  "Transcribe this meeting audio verbatim in the language or languages being spoken.",
-                  "Preserve code-switching, including mixed-language speech such as Hinglish, and do not translate it.",
-                  "Use the natural script used by the speaker when it is clear, and preserve names, numbers, and technical terms as accurately as possible.",
-                  "Add punctuation for readability without summarizing or rewriting what was said.",
-                  "If there is no intelligible speech, return an empty string.",
-                  "Return only the transcription with no commentary or labels.",
-                ].join(" "),
-              },
-              {
-                inline_data: {
-                  mime_type: ext,
-                  data: base64,
-                },
-              },
-            ],
+            text: [
+              "Transcribe this meeting audio verbatim in the language or languages being spoken.",
+              "Preserve code-switching, including mixed-language speech such as Hinglish, and do not translate it.",
+              "Use the natural script used by the speaker when it is clear, and preserve names, numbers, and technical terms as accurately as possible.",
+              "Add punctuation for readability without summarizing or rewriting what was said.",
+              "If there is no intelligible speech, return an empty string.",
+              "Return only the transcription with no commentary or labels.",
+            ].join(" "),
+          },
+          {
+            inline_data: {
+              mime_type: ext,
+              data: base64,
+            },
           },
         ],
-      }),
-    }
-  );
-
-  const data = (await res.json()) as GeminiResponse;
-  if (!res.ok) {
-    const message =
-      data.error?.message ?? `Gemini transcription failed (${res.status})`;
-    throw new Error(message);
-  }
+      },
+    ],
+  });
 
   return (
     data.candidates?.[0]?.content?.parts
@@ -386,25 +417,10 @@ async function generateJsonFromPrompt<T>(prompt: string): Promise<T> {
     throw new Error("GEMINI_API_KEY is not set. Add it to the project .env file.");
   }
 
-  const res = await fetch(
-    `${GEMINI_API_BASE}/models/${GEMINI_MODEL}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY,
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" },
-      }),
-    }
-  );
-
-  const data = (await res.json()) as GeminiResponse;
-  if (!res.ok) {
-    throw new Error(data.error?.message ?? `Gemini request failed (${res.status})`);
-  }
+  const data = await generateContent(GEMINI_MODEL, {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: "application/json" },
+  });
 
   const raw =
     data.candidates?.[0]?.content?.parts

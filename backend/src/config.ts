@@ -54,6 +54,28 @@ export const GEMINI_API_KEY =
   process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY ?? "";
 export const GEMINI_MODEL =
   process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+
+/**
+ * Fallback models tried in order when the primary is overloaded.
+ *
+ * Free-tier capacity pressure returns 503 "high demand" per model, and which
+ * model is saturated rotates minute to minute — pinning a single "better" one
+ * does not help. Each entry is only tried after the previous one exhausts its
+ * retries, so a healthy primary costs nothing.
+ */
+export const GEMINI_FALLBACK_MODELS = (
+  process.env.GEMINI_FALLBACK_MODELS ??
+  "gemini-3.6-flash,gemini-flash-latest,gemini-2.5-flash"
+)
+  .split(",")
+  .map((m) => m.trim())
+  .filter(Boolean);
+
+/**
+ * Transcription model. Split from GEMINI_MODEL so meeting audio can be tuned
+ * without changing the chat/summary model (and vice versa).
+ */
+export const GEMINI_STT_MODEL = process.env.GEMINI_STT_MODEL ?? GEMINI_MODEL;
 /** Native-audio Live model — same as Snappy (`gemini-3.1-flash-live-preview`). */
 export const GEMINI_LIVE_MODEL =
   process.env.GEMINI_LIVE_MODEL ?? "models/gemini-3.1-flash-live-preview";
