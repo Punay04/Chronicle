@@ -101,8 +101,14 @@ export interface MeetingDetail extends Omit<MeetingListItem, "chunk_count" | "au
 }
 
 export interface ChatRequest {
-  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  messages: Array<{
+    role: "user" | "assistant";
+    content: string;
+    timestamp?: string;
+  }>;
   context_query?: string;
+  session_id?: string;
+  session_started_at?: string;
 }
 
 export interface ChatResponse {
@@ -319,6 +325,15 @@ export const api = {
   audioStart: () => request<{ recording: boolean }>("POST", "/audio/start"),
   audioStop: () => request<{ recording: boolean }>("POST", "/audio/stop"),
   chat: (body: ChatRequest) => request<ChatResponse>("POST", "/chat", body),
+  ingestMemorySession: (body: {
+    sessionId: string;
+    turns: Array<{
+      role: "user" | "assistant";
+      content: string;
+      timestamp?: string;
+    }>;
+    startedAt?: string;
+  }) => request<{ id: string; turns: number }>("POST", "/memory/sessions", body),
   liveSession: (body: LiveSessionRequest) =>
     request<LiveSessionResponse>("POST", "/chat/live/session", body),
   meetings: () => request<{ data: MeetingListItem[] }>("GET", "/meetings"),

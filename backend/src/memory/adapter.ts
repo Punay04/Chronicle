@@ -36,7 +36,11 @@ export function rowToMemoryNode(row: Record<string, unknown>): MemoryNode | null
 
   const type = (asString(source.type) ?? asString(source.episode_type) ?? "memory") as MemoryNodeType;
   const content = asString(source.content) ?? asString(source.text) ?? "";
-  const created = asString(source.created_at) ?? asString(source.valid_from) ?? new Date().toISOString();
+  const created =
+    asString(source.created_at) ??
+    asString(source.valid_from) ??
+    asString(source.started_at) ??
+    new Date().toISOString();
 
   return {
     id,

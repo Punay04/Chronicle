@@ -14,6 +14,25 @@ import type { MemoryGraph, MemoryNode, MemoryStats } from "./types.js";
 
 let initialized = false;
 
+const QUERY_STOP_WORDS = new Set([
+  "what",
+  "when",
+  "where",
+  "which",
+  "who",
+  "whose",
+  "would",
+  "could",
+  "should",
+  "tell",
+  "show",
+  "about",
+  "from",
+  "that",
+  "this",
+  "with",
+]);
+
 export function initMemory(): void {
   initialized = true;
 }
@@ -26,7 +45,7 @@ function tokensFromQuery(query: string): string[] {
   return query
     .toLowerCase()
     .split(/[^a-z0-9]+/)
-    .filter((token) => token.length >= 4)
+    .filter((token) => token.length >= 4 && !QUERY_STOP_WORDS.has(token))
     .slice(0, 6);
 }
 
@@ -41,13 +60,17 @@ function matchesQuery(text: string, query: string): boolean {
   const haystack = text.toLowerCase();
   const tokens = tokensFromQuery(query);
   if (tokens.length === 0) return haystack.includes(query.trim().toLowerCase());
-  return tokens.some((token) => haystack.includes(token));
+  const matches = tokens.filter((token) => haystack.includes(token)).length;
+  // A single shared word is too weak for multi-word personal-history queries
+  // and previously surfaced unrelated screenshots instead of abstaining.
+  const required = tokens.length === 1 ? 1 : Math.ceil(tokens.length / 2);
+  return matches >= required;
 }
 
 /** Columns that reconstruct an Episode, since "RETURN e" is not supported. */
 const EPISODE_COLUMNS =
   "e.key, e.type, e.title, e.content, e.source_type, e.source_id, " +
-  "e.app_name, e.window_name, e.salience, e.created_at, e.updated_at";
+  "e.app_name, e.window_name, e.salience, e.created_at, e.updated_at, e.evaluation";
 
 /** How many rows to pull before filtering locally. */
 const SCAN_LIMIT = 400;
@@ -65,9 +88,19 @@ const EPISODE_TYPES = [
   "document",
 ] as const;
 
+function isEvaluationRow(row: Record<string, unknown>): boolean {
+  const key = typeof row.key === "string" ? row.key : "";
+  return (
+    row.evaluation === true ||
+    key.includes("__chronicle_eval__") ||
+    key.includes("hackhydraeval")
+  );
+}
+
 export async function retrieveContextForChat(
   query: string,
-  charBudget = 24_000
+  charBudget = 24_000,
+  includeEvaluation = false
 ): Promise<{ snippets: string[]; nodeIds: string[] }> {
   initMemory();
 
@@ -100,11 +133,12 @@ export async function retrieveContextForChat(
       await runCypher(`
       MATCH (f:Fact)
       WHERE f.current = true
-      RETURN f.key, f.text, f.valid_from
+      RETURN f.key, f.text, f.valid_from, f.evaluation
       ORDER BY f.valid_from DESC
       LIMIT ${SCAN_LIMIT}
     `)
     )
+      .filter((row) => includeEvaluation || !isEvaluationRow(row))
       .filter((row) => matchesQuery(factText(row), trimmed))
       .slice(0, 12);
 
@@ -112,11 +146,12 @@ export async function retrieveContextForChat(
       await runCypher(`
       MATCH (f:Fact)
       WHERE f.current = false
-      RETURN f.key, f.text, f.valid_from, f.valid_to
+      RETURN f.key, f.text, f.valid_from, f.valid_to, f.evaluation
       ORDER BY f.valid_from DESC
       LIMIT ${SCAN_LIMIT}
     `)
     )
+      .filter((row) => includeEvaluation || !isEvaluationRow(row))
       .filter((row) => matchesQuery(factText(row), trimmed))
       .slice(0, 8);
 
@@ -150,6 +185,7 @@ export async function retrieveContextForChat(
       LIMIT ${SCAN_LIMIT}
     `)
     )
+      .filter((row) => includeEvaluation || !isEvaluationRow(row))
       .filter((row) =>
         matchesQuery(
           `${typeof row.content === "string" ? row.content : ""} ${typeof row.title === "string" ? row.title : ""}`,
@@ -273,11 +309,12 @@ export async function getUserProfile(): Promise<{
     const rows = await runCypher(`
       MATCH (f:Fact)
       WHERE f.current = true
-      RETURN f.text
+      RETURN f.key, f.text, f.evaluation
       ORDER BY f.valid_from DESC
       LIMIT 24
     `);
     const persona = rows
+      .filter((row) => !isEvaluationRow(row))
       .map((row) => (typeof row.text === "string" ? row.text.trim() : ""))
       .filter(Boolean);
     return { persona, aims: [] };
@@ -313,6 +350,7 @@ export async function listNodes(params: {
     const matched = rows
       .map((row) => rowToMemoryNode(row))
       .filter((node): node is MemoryNode => Boolean(node))
+      .filter((node) => !isEvaluationRow(node.metadata ?? { key: node.id }))
       .filter((node) => !params.type || node.type === params.type)
       .filter(
         (node) => !query || matchesQuery(`${node.content} ${node.title ?? ""}`, query)
@@ -335,7 +373,22 @@ export async function getNode(id: string): Promise<MemoryNode | null> {
       RETURN ${EPISODE_COLUMNS}
       LIMIT 1
     `);
-    return rows[0] ? rowToMemoryNode(rows[0]) : null;
+    if (rows[0]) return rowToMemoryNode(rows[0]);
+
+    const factRows = await runCypher(`
+      MATCH (f:Fact {id: ${graphIdFor(id)}})
+      RETURN f.key, f.type, f.text, f.fact_key, f.current,
+             f.valid_from, f.valid_to
+      LIMIT 1
+    `);
+    if (factRows[0]) return rowToMemoryNode(factRows[0]);
+
+    const sessionRows = await runCypher(`
+      MATCH (s:Session {id: ${graphIdFor(id)}})
+      RETURN s.key, s.type, s.started_at, s.turn_count
+      LIMIT 1
+    `);
+    return sessionRows[0] ? rowToMemoryNode(sessionRows[0]) : null;
   } catch {
     return null;
   }
@@ -361,7 +414,9 @@ export async function getNodeGraph(
       try {
         const rows = await runCypher(`
           MATCH ${pattern}
-          RETURN n.key, n.type, n.title, n.content, n.created_at, n.salience
+          RETURN n.key, n.type, n.title, n.content, n.text, n.source_type,
+                 n.source_id, n.created_at, n.updated_at, n.valid_from,
+                 n.valid_to, n.current, n.fact_key, n.salience
           LIMIT 12
         `);
         for (const row of rows) {
@@ -373,10 +428,18 @@ export async function getNodeGraph(
       }
     };
 
-    await collect("FOLLOWS", `(e:Episode {id: ${graphId}})-[:FOLLOWS]->(n:Episode)`);
-    await collect("FOLLOWS", `(n:Episode)-[:FOLLOWS]->(e:Episode {id: ${graphId}})`);
-    await collect("RECORDED_AS", `(e:Episode {id: ${graphId}})-[:RECORDED_AS]->(n:Fact)`);
-    await collect("IN_SESSION", `(e:Episode {id: ${graphId}})-[:IN_SESSION]->(n:Session)`);
+    if (node.type === "fact") {
+      await collect("RECORDED_AS", `(n:Episode)-[:RECORDED_AS]->(f:Fact {id: ${graphId}})`);
+      await collect("SUPERSEDES", `(f:Fact {id: ${graphId}})-[:SUPERSEDES]->(n:Fact)`);
+      await collect("SUPERSEDES", `(n:Fact)-[:SUPERSEDES]->(f:Fact {id: ${graphId}})`);
+    } else if (node.type === "session") {
+      await collect("IN_SESSION", `(n:Episode)-[:IN_SESSION]->(s:Session {id: ${graphId}})`);
+    } else {
+      await collect("FOLLOWS", `(e:Episode {id: ${graphId}})-[:FOLLOWS]->(n:Episode)`);
+      await collect("FOLLOWS", `(n:Episode)-[:FOLLOWS]->(e:Episode {id: ${graphId}})`);
+      await collect("RECORDED_AS", `(e:Episode {id: ${graphId}})-[:RECORDED_AS]->(n:Fact)`);
+      await collect("IN_SESSION", `(e:Episode {id: ${graphId}})-[:IN_SESSION]->(n:Session)`);
+    }
 
     return buildGraphFromNeighbors(node, neighbors);
   } catch {

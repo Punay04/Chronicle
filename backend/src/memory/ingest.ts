@@ -1,5 +1,6 @@
 import { HydraQueryError, cypherLiteral, runCypher } from "./client.js";
 import { ROOT_KEY, graphIdFor, rootGraphId } from "./graph-ids.js";
+import { extractDurableFacts, sameFactText } from "./fact-extraction.js";
 
 /**
  * Writing to HydraDB, within what the graph-node can actually execute.
@@ -184,6 +185,7 @@ async function upsertEpisode(params: {
   windowName: string | null;
   salience: number;
   createdAt: string;
+  evaluation?: boolean;
 }): Promise<string | null> {
   if (writesUnsupported) return null;
 
@@ -209,6 +211,7 @@ async function upsertEpisode(params: {
       salience: params.salience,
       created_at: params.createdAt,
       updated_at: nowIso(),
+      evaluation: params.evaluation ?? false,
     });
 
     noteIngestSuccess();
@@ -237,14 +240,16 @@ export async function linkFollows(
 async function upsertFact(params: {
   id: string;
   text: string;
+  factKey?: string;
   episodeId: string;
   createdAt: string;
-}): Promise<void> {
-  if (writesUnsupported) return;
+  evaluation?: boolean;
+}): Promise<boolean> {
+  if (writesUnsupported) return false;
 
   const factId = graphIdFor(params.id);
   const episodeId = graphIdFor(params.episodeId);
-  const key = clip(params.text, 48).toLowerCase();
+  const key = clip(params.factKey ?? params.text, 80).toLowerCase();
 
   try {
     // The fact hangs off its episode, which doubles as the RECORDED_AS edge.
@@ -254,15 +259,104 @@ async function upsertFact(params: {
 
     await setProperties("Fact", factId, {
       key: params.id,
+      type: "fact",
       text: clip(params.text, MAX_CONTENT_CHARS),
       fact_key: key,
       current: true,
       valid_from: params.createdAt,
+      evaluation: params.evaluation ?? false,
     });
 
     noteIngestSuccess();
+    return true;
   } catch (err) {
     reportIngestFailure(err);
+    return false;
+  }
+}
+
+interface StoredFact {
+  key: string;
+  text: string;
+  current: boolean;
+  validFrom: string;
+}
+
+async function getFactById(key: string): Promise<StoredFact | null> {
+  const rows = await runCypher(
+    `MATCH (f:Fact {id: ${graphIdFor(key)}}) RETURN f.key, f.text, f.current, f.valid_from LIMIT 1`
+  );
+  const row = rows[0];
+  if (!row || typeof row.key !== "string") return null;
+  return {
+    key: row.key,
+    text: typeof row.text === "string" ? row.text : "",
+    current: row.current === true,
+    validFrom: typeof row.valid_from === "string" ? row.valid_from : "",
+  };
+}
+
+async function getCurrentFactForSlot(factKey: string): Promise<StoredFact | null> {
+  const rows = await runCypher(
+    `MATCH (f:Fact) WHERE f.fact_key = ${cypherLiteral(clip(factKey, 80).toLowerCase())} ` +
+      `RETURN f.key, f.text, f.current, f.valid_from ORDER BY f.valid_from DESC LIMIT 12`
+  );
+  const row = rows.find((candidate) => candidate.current === true);
+  if (!row || typeof row.key !== "string") return null;
+  return {
+    key: row.key,
+    text: typeof row.text === "string" ? row.text : "",
+    current: true,
+    validFrom: typeof row.valid_from === "string" ? row.valid_from : "",
+  };
+}
+
+async function linkEpisodeToFact(episodeKey: string, factKey: string): Promise<void> {
+  await runWrite(
+    `MERGE (e:Episode {id: ${graphIdFor(episodeKey)}})-[:RECORDED_AS]->(f:Fact {id: ${graphIdFor(factKey)}})`
+  );
+}
+
+async function ingestTemporalFact(params: {
+  id: string;
+  slot: string;
+  text: string;
+  episodeId: string;
+  createdAt: string;
+  evaluation?: boolean;
+}): Promise<void> {
+  // Replayed session payloads are common as a conversation grows. Once this
+  // exact fact exists, do not let an older turn replace a newer current fact.
+  if (await getFactById(params.id)) return;
+
+  const current = await getCurrentFactForSlot(params.slot);
+  if (current && sameFactText(current.text, params.text)) {
+    await linkEpisodeToFact(params.episodeId, current.key);
+    return;
+  }
+
+  const stored = await upsertFact({
+    id: params.id,
+    text: params.text,
+    factKey: params.slot,
+    episodeId: params.episodeId,
+    createdAt: params.createdAt,
+    evaluation: params.evaluation,
+  });
+
+  if (!stored || !current) return;
+
+  const incomingTime = Date.parse(params.createdAt);
+  const currentTime = Date.parse(current.validFrom);
+  const incomingIsNewer =
+    !Number.isFinite(currentTime) ||
+    !Number.isFinite(incomingTime) ||
+    incomingTime >= currentTime;
+
+  if (incomingIsNewer) {
+    await supersedeFact(current.key, params.id, params.createdAt);
+  } else {
+    await supersedeFact(params.id, current.key, current.validFrom || params.createdAt);
   }
 }
 
@@ -414,11 +508,22 @@ export async function ingestUserMemory(params: {
 
 export async function ingestChatSession(params: {
   sessionId: string;
-  turns: Array<{ role: "user" | "assistant"; content: string }>;
+  turns: Array<{
+    role: "user" | "assistant";
+    content: string;
+    timestamp?: string;
+  }>;
   startedAt?: string;
 }): Promise<string | null> {
   if (writesUnsupported) return null;
-  const startedAt = params.startedAt ?? nowIso();
+  const requestedStart = params.startedAt ?? nowIso();
+  const startMillis = Date.parse(requestedStart);
+  const startedAt = Number.isFinite(startMillis)
+    ? new Date(startMillis).toISOString()
+    : nowIso();
+  const evaluation =
+    params.sessionId.startsWith("__chronicle_eval__") ||
+    params.sessionId.startsWith("hackhydraeval");
 
   try {
     const rootId = await ensureRoot();
@@ -429,8 +534,10 @@ export async function ingestChatSession(params: {
     );
     await setProperties("Session", sessionGraphId, {
       key: params.sessionId,
+      type: "session",
       started_at: startedAt,
       turn_count: params.turns.length,
+      evaluation,
     });
 
     let previousKey: string | null = null;
@@ -438,6 +545,11 @@ export async function ingestChatSession(params: {
     for (const [index, turn] of params.turns.entries()) {
       const text = turn.content.trim();
       if (!text) continue;
+
+      const parsedTurnTime = turn.timestamp ? Date.parse(turn.timestamp) : Number.NaN;
+      const createdAt = Number.isFinite(parsedTurnTime)
+        ? new Date(parsedTurnTime).toISOString()
+        : new Date(Date.parse(startedAt) + index).toISOString();
 
       const episodeKey = `${params.sessionId}_t${index}`;
       const stored = await upsertEpisode({
@@ -450,7 +562,8 @@ export async function ingestChatSession(params: {
         appName: null,
         windowName: null,
         salience: turn.role === "user" ? 0.85 : 0.4,
-        createdAt: startedAt,
+        createdAt,
+        evaluation,
       });
       if (!stored) continue;
 
@@ -462,12 +575,17 @@ export async function ingestChatSession(params: {
       previousKey = episodeKey;
 
       if (turn.role === "user") {
-        await upsertFact({
-          id: `fact_${episodeKey}`,
-          text,
-          episodeId: episodeKey,
-          createdAt: startedAt,
-        });
+        const facts = extractDurableFacts(text);
+        for (const [factIndex, fact] of facts.entries()) {
+          await ingestTemporalFact({
+            id: `fact_${episodeKey}_${factIndex}`,
+            slot: fact.slot,
+            text: fact.text,
+            episodeId: episodeKey,
+            createdAt,
+            evaluation,
+          });
+        }
       }
     }
 

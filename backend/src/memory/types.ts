@@ -8,7 +8,8 @@ export type MemoryNodeType =
   | "topic"
   | "document"
   | "session_turn"
-  | "fact";
+  | "fact"
+  | "session";
 
 export type MemorySourceType = "frame" | "audio" | "meeting" | "user";
 

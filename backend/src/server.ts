@@ -63,6 +63,7 @@ import {
   ingestUserMemory,
   initMemory,
   listNodes,
+  retrieveContextForChat,
 } from "./memory/index.js";
 import {
   getRunningPipes,
@@ -490,8 +491,10 @@ app.get("/engine/status", (c) => {
 app.post("/chat", async (c) => {
   try {
     const body = await c.req.json<{
-      messages: ChatTurn[];
+      messages: Array<ChatTurn & { timestamp?: string }>;
       context_query?: string;
+      session_id?: string;
+      session_started_at?: string;
     }>();
 
     if (!Array.isArray(body.messages) || body.messages.length === 0) {
@@ -538,6 +541,31 @@ app.post("/chat", async (c) => {
           }
         : undefined
     );
+
+    // A completed turn becomes cross-session HydraDB memory immediately. Chat
+    // remains available if the local graph-node is temporarily unavailable.
+    if (body.session_id?.trim()) {
+      const ingested = await ingestChatSession({
+        sessionId: body.session_id.trim(),
+        turns: [
+          ...body.messages.map((message) => ({
+            role: message.role,
+            content: message.content,
+            timestamp: message.timestamp,
+          })),
+          {
+            role: "assistant" as const,
+            content,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        startedAt: body.session_started_at,
+      });
+      if (!ingested) {
+        console.warn("[memory] completed chat could not be written to HydraDB");
+      }
+    }
+
     return c.json({ content, model: GEMINI_MODEL, provider: "gemini" });
   } catch (err) {
     return c.json(
@@ -606,6 +634,13 @@ app.get("/memory/stats", async (c) => {
 
 app.get("/memory/profile", async (c) => {
   return c.json(await getUserProfile());
+});
+
+/** Deterministic retrieval probe used by the local memory evaluation script. */
+app.post("/memory/retrieve", async (c) => {
+  const body = await c.req.json<{ query?: string }>();
+  if (!body.query?.trim()) return c.json({ error: "query is required" }, 400);
+  return c.json(await retrieveContextForChat(body.query, 24_000, true));
 });
 
 app.get("/memory", async (c) => {
@@ -678,7 +713,11 @@ app.post("/memory/sessions", async (c) => {
   try {
     const body = await c.req.json<{
       sessionId?: string;
-      turns?: Array<{ role: "user" | "assistant"; content: string }>;
+      turns?: Array<{
+        role: "user" | "assistant";
+        content: string;
+        timestamp?: string;
+      }>;
       startedAt?: string;
     }>();
 

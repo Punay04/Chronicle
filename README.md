@@ -89,6 +89,8 @@ These are **graph schema names**, not product vocabulary — none of them appear
 
 Chat retrieval runs Cypher against **current** facts first, then superseded facts (labeled so the model must not treat them as live), then related episodes. If the graph has no match, Chronicle injects an `[abstain]` instruction so the model says it does not know instead of inventing history.
 
+Completed typed and live Assistant turns are written back into HydraDB automatically. Chronicle conservatively extracts declarative key/value facts (for example, `I live in Austin`, `My city is Austin`, or `Project Atlas launch is Friday`) while ignoring questions and requests. A later fact with the same normalized subject becomes current, marks the earlier value inactive, and links the pair with `SUPERSEDES`. Replayed session payloads are idempotent and cannot make an older value current again.
+
 HydraDB is required for memory. Without the local graph-node, capture still works in SQLite, but the Memory graph, profile, and graph-aware chat context are empty.
 
 ## What you see
@@ -151,6 +153,16 @@ curl -s http://127.0.0.1:3030/memory/sessions \
 
 A later session with a different city writes a new `Fact` and a `SUPERSEDES` edge. Chat questions about the current city should use the new fact; questions about the old city should treat it as replaced.
 
+## Verify temporal memory
+
+With HydraDB and the Chronicle backend running, execute:
+
+```bash
+npm run eval:memory
+```
+
+The deterministic smoke evaluation ingests an old and a new value for the same fact slot, queries the retrieval layer directly, and checks three behaviors: the new value is tagged `[current]`, the old value is tagged `[superseded]`, and an unknown query produces `[abstain]`. It does not depend on Gemini wording.
+
 ## Architecture
 
 ```
@@ -170,6 +182,7 @@ Renderer (React) --IPC--> Electron main
 | `npm run dev` | HydraDB + backend + Vite/Electron |
 | `npm run memory:bootstrap` | Compile native `graph-node` (WSL on Windows, apt on Linux) |
 | `npm run memory:start` | Start the local HydraDB graph-node |
+| `npm run eval:memory` | Verify current, superseded, and abstention retrieval |
 | `npm run typecheck` | Typecheck the desktop app |
 | `npm run test:runtime` | Runtime policy tests |
 | `npm run build:win` | Windows installer |

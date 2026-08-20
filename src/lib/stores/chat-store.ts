@@ -151,11 +151,14 @@ export async function simulateAssistantReply(
         .map((message) => ({
           role: message.role,
           content: message.content,
+          timestamp: new Date(message.timestamp).toISOString(),
         })) ?? [];
 
     const res = await api.chat({
-      messages: [...history, { role: "user", content: userMessage }],
+      messages: history,
       context_query: userMessage,
+      session_id: sessionId,
+      session_started_at: history[0]?.timestamp,
     });
 
     actions.addMessage(sessionId, { role: "assistant", content: res.content });
@@ -187,4 +190,25 @@ export function commitLiveTurn(
     actions.addMessage(sessionId, { role: "assistant", content: assistantText });
   }
   actions.setLivePartials("", "");
+
+  if (userText || assistantText) {
+    const session = useChatStore.getState().sessions[sessionId];
+    const turns =
+      session?.messages
+        .filter((message) => message.id !== "welcome")
+        .map((message) => ({
+          role: message.role,
+          content: message.content,
+          timestamp: new Date(message.timestamp).toISOString(),
+        })) ?? [];
+    if (turns.length > 0) {
+      void api
+        .ingestMemorySession({
+          sessionId,
+          turns,
+          startedAt: turns[0]?.timestamp,
+        })
+        .catch((err) => console.warn("[memory] live session ingest failed", err));
+    }
+  }
 }

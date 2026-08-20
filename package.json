@@ -17,6 +17,8 @@
     "build:win": "npm run compile && electron-builder --win nsis --x64 --publish never",
     "build:site": "npm run build --prefix site",
     "test:runtime": "node --experimental-strip-types --test electron/runtime-policy.test.ts",
+    "test:memory": "node --experimental-strip-types --test backend/src/memory/fact-extraction.test.ts",
+    "test": "npm run test:runtime && npm run test:memory",
     "verify:package:mac": "node scripts/verify-packaged-runtime.mjs release/mac-universal/Chronicle.app/Contents/Resources/app.asar",
     "preview": "vite preview",
     "electron:dev": "vite",
@@ -28,6 +30,7 @@
     "memory:start:local": "node scripts/hydradb-start.mjs",
     "memory:bootstrap": "node scripts/hydradb-bootstrap.mjs",
     "memory:status": "curl -sf http://127.0.0.1:9090/readyz",
+    "eval:memory": "node scripts/eval-memory.mjs",
     "postinstall": "npm run backend:install"
   },
   "dependencies": {
